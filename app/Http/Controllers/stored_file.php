@@ -7,23 +7,11 @@ use Illuminate\Http\Request;
 
 class StoredFileController extends Controller
 {
-    public function __construct()
-    {
-        // Only index & show are public
-        $this->middleware('auth:sanctum')->except(['index', 'show']);
-    }
-
-    /**
-     * GET /stored-files
-     */
     public function index()
     {
         return StoredFile::with('user')->get();
     }
 
-    /**
-     * POST /stored-files
-     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -33,7 +21,6 @@ class StoredFileController extends Controller
             'mainImageUrl'      => 'nullable|string',
         ]);
 
-        // Automatically assign authenticated user
         $data['user_id'] = auth()->id();
 
         $file = StoredFile::create($data);
@@ -41,17 +28,11 @@ class StoredFileController extends Controller
         return response()->json($file, 201);
     }
 
-    /**
-     * GET /stored-files/{storedFile}
-     */
     public function show(StoredFile $storedFile)
     {
         return $storedFile->load('user');
     }
 
-    /**
-     * PUT/PATCH /stored-files/{storedFile}
-     */
     public function update(Request $request, StoredFile $storedFile)
     {
         // Optional permission logic
@@ -71,9 +52,6 @@ class StoredFileController extends Controller
         return $storedFile;
     }
 
-    /**
-     * DELETE /stored-files/{storedFile}
-     */
     public function destroy(StoredFile $storedFile)
     {
         // Optional permission logic
