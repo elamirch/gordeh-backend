@@ -1,46 +1,53 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\StoredFileController;
+
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\StoredFileController;
 use App\Http\Controllers\LabTestController;
+use App\Http\Controllers\InsuranceController;
+use App\Http\Controllers\AdminDashboardController;
 
-Route::apiResource('users', UserController::class)
-->middleware('auth:sanctum');
+Route::post('auth/login', [AuthController::class, 'login']);
+Route::post('auth/login/check', [AuthController::class, 'checkLogin']);
+Route::post('auth/refresh', [AuthController::class, 'refreshTokens']);
 
-Route::apiResource('stored-files', StoredFileController::class)
-->middleware('auth:sanctum');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('jwt')->group(function () {
+
+    // --- Auth ---
+    Route::get('auth/profile', [AuthController::class, 'profile']);
+    Route::post('auth/logout', [AuthController::class, 'logout']);
+
+    // --- Users ---
+    Route::apiResource('users', UserController::class);
+
+    // --- Stored Files ---
+    Route::apiResource('stored-files', StoredFileController::class);
+
     Route::post('files/ocr', [StoredFileController::class, 'ocrSaveFile']);
     Route::post('files/profile', [StoredFileController::class, 'profileSaveFile']);
-});
 
-Route::middleware('auth:sanctum')->group(function () {
+    // --- Lab Tests ---
     Route::post('lab-tests', [LabTestController::class, 'store']);
     Route::get('lab-tests', [LabTestController::class, 'index']);
     Route::get('lab-tests/own', [LabTestController::class, 'indexOwn']);
     Route::get('lab-tests/{id}', [LabTestController::class, 'show']);
+
     Route::get('lab-tests/user/monthly-avg', [LabTestController::class, 'userMonthlyAvgGfr']);
     Route::get('lab-tests/monthly-avg', [LabTestController::class, 'allUsersMonthlyAvgGfr']);
 
-});
-
-use App\Http\Controllers\InsuranceController;
-
-Route::middleware('auth:sanctum')->group(function () {
+    // --- Insurances ---
     Route::get('insurances', [InsuranceController::class, 'index']);
     Route::get('insurances/me', [InsuranceController::class, 'indexMe']);
     Route::post('insurances', [InsuranceController::class, 'store']);
     Route::get('insurances/{id}', [InsuranceController::class, 'show']);
     Route::patch('insurances/{id}', [InsuranceController::class, 'update']);
     Route::delete('insurances/{id}', [InsuranceController::class, 'destroy']);
-});
 
-use App\Http\Controllers\AdminDashboardController;
-
-Route::middleware(['auth:sanctum'])->group(function () {
-    // Only admin users should be able to access — attach a middleware or gate accordingly
-    Route::get('admin/dashboard', [AdminDashboardController::class, 'index']);
+    // --- Admin Dashboard ---
+    Route::middleware('is_admin')->group(function () {
+        Route::get('admin/dashboard', [AdminDashboardController::class, 'index']);
+    });
 });

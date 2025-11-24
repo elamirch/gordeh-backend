@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Notifications\Notifiable;
 
-class User extends Model
+class User extends Authenticatable implements JWTSubject
 {
-    use HasFactory;
+    use HasFactory, Notifiable;
 
     protected $table = 'users';
 
@@ -46,19 +48,31 @@ class User extends Model
         'updated_at'           => 'datetime',
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relationships
-    |--------------------------------------------------------------------------
-    */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims()
+    {
+        return [
+            'id'            => $this->id,
+            'phoneNumber'   => $this->phone_number,
+            'email'         => $this->email,
+            'firstName'     => $this->first_name,
+            'lastName'      => $this->last_name,
+            'profile_img_url' => $this->profile_img_url,
+            'role'          => $this->role,
+        ];
+    }
 
     public function labTests()
     {
-        return $this->hasMany(Test::class);
+        return $this->hasMany(Test::class, 'user_id');
     }
 
     public function storedFiles()
     {
-        return $this->hasMany(FileLibrary::class);
+        return $this->hasMany(StoredFile::class, 'user_id');
     }
 }
