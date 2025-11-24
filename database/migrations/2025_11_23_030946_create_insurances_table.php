@@ -4,11 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateInsuranceTable extends Migration
+return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up()
     {
         Schema::create('insurance', function (Blueprint $table) {
@@ -32,9 +29,6 @@ class CreateInsuranceTable extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down()
     {
         Schema::table('insurance', function (Blueprint $table) {
@@ -43,4 +37,4 @@ class CreateInsuranceTable extends Migration
 
         Schema::dropIfExists('insurance');
     }
-}
+};
