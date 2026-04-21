@@ -19,7 +19,8 @@ return new class extends Migration
             $table->integer('ideal_weight')->nullable();
             $table->float('BMI')->nullable();
             $table->integer('daily_calories')->nullable();
-            $table->enum('gender', ['m', 'f'])->nullable();            $table->string('blood_type')->nullable();
+            $table->enum('gender', ['m', 'f'])->nullable();
+            $table->string('blood_type')->nullable();
             $table->integer('age')->nullable();
             $table->string('profile_img_url')->unique()->nullable();
             $table->integer('otp_code')->nullable();
