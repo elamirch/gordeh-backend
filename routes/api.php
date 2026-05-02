@@ -9,6 +9,7 @@ use App\Http\Controllers\LabTestController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\AdminDashboardController;
 
+Route::post('auth/register', [AuthController::class, 'register']);
 Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/login/check', [AuthController::class, 'checkLogin']);
 Route::post('auth/refresh', [AuthController::class, 'refreshTokens']);
