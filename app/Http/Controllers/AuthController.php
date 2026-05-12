@@ -71,7 +71,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Login successful',
-            'user'    => auth()->user(),
+            'user'    => $user,
             'access_token'  => $access_token,
             'refresh_token' => $user->refresh_token,
         ]);
@@ -94,6 +94,9 @@ class AuthController extends Controller
         return response()->json(auth()->user());
     }
 
+    /**
+     * Refresh tokens
+    */
     public function refreshTokens(Request $request)
     {
         $request->validate([
@@ -119,7 +122,10 @@ class AuthController extends Controller
             'refresh_token' => $newRefreshToken,
         ]);
     }
-
+    
+    /**
+     * Log out of all devices
+    */
     public function logoutAllDevices()
     {
         $user = auth()->user();
