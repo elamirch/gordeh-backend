@@ -15,11 +15,12 @@ Route::post('auth/login/check', [AuthController::class, 'checkLogin']);
 Route::post('auth/refresh', [AuthController::class, 'refreshTokens']);
 
 
-Route::middleware('jwt')->group(function () {
+Route::middleware('auth:api')->group(function () {
 
     // --- Auth ---
     Route::get('auth/profile', [AuthController::class, 'profile']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
+    Route::post('auth/logout-all', [AuthController::class, 'logoutAllDevices']);
 
     // --- Users ---
     Route::apiResource('users', UserController::class);

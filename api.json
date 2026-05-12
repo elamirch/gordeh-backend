@@ -9,6 +9,11 @@
             "url": "http://localhost/api"
         }
     ],
+    "security": [
+        {
+            "http": []
+        }
+    ],
     "paths": {
         "/admin/dashboard": {
             "get": {
@@ -118,6 +123,7 @@
         "/auth/register": {
             "post": {
                 "operationId": "auth.register",
+                "summary": "Register user",
                 "tags": [
                     "Auth"
                 ],
@@ -131,21 +137,13 @@
                                     "phone_number": {
                                         "type": "string"
                                     },
-                                    "email": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "email"
-                                    },
-                                    "password": {
-                                        "type": "string",
-                                        "minLength": 6
+                                    "otp_code": {
+                                        "type": "integer"
                                     }
                                 },
                                 "required": [
                                     "phone_number",
-                                    "password"
+                                    "otp_code"
                                 ]
                             }
                         }
@@ -184,12 +182,14 @@
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
                     }
-                }
+                },
+                "security": []
             }
         },
         "/auth/login": {
             "post": {
                 "operationId": "auth.login",
+                "summary": "Login user",
                 "tags": [
                     "Auth"
                 ],
@@ -203,13 +203,13 @@
                                     "phone_number": {
                                         "type": "string"
                                     },
-                                    "password": {
-                                        "type": "string"
+                                    "otp_code": {
+                                        "type": "integer"
                                     }
                                 },
                                 "required": [
                                     "phone_number",
-                                    "password"
+                                    "otp_code"
                                 ]
                             }
                         }
@@ -255,7 +255,7 @@
                                         "error": {
                                             "type": "string",
                                             "enum": [
-                                                "Invalid credentials"
+                                                "Invalid credentials or OTP"
                                             ]
                                         }
                                     },
@@ -269,12 +269,14 @@
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
                     }
-                }
+                },
+                "security": []
             }
         },
         "/auth/profile": {
             "get": {
                 "operationId": "auth.profile",
+                "summary": "Logout user",
                 "tags": [
                     "Auth"
                 ],
@@ -295,6 +297,7 @@
         "/auth/logout": {
             "post": {
                 "operationId": "auth.logout",
+                "summary": "Get authenticated user profile",
                 "tags": [
                     "Auth"
                 ],
@@ -1660,6 +1663,13 @@
         }
     },
     "components": {
+        "securitySchemes": {
+            "http": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        },
         "schemas": {
             "LabTest": {
                 "type": "object",
@@ -1912,7 +1922,7 @@
                         ],
                         "format": "date-time"
                     },
-                    "refresh_token": {
+                    "token": {
                         "type": [
                             "string",
                             "null"
@@ -1960,7 +1970,7 @@
                     "profile_img_url",
                     "otp_code",
                     "otp_code_expiration",
-                    "refresh_token",
+                    "token",
                     "birth_date",
                     "role",
                     "created_at",

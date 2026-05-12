@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('profile_img_url')->unique()->nullable();
             $table->integer('otp_code')->nullable();
             $table->dateTime('otp_code_expiration')->nullable();
+            $table->text('access_token')->nullable();
             $table->text('refresh_token')->nullable();
             $table->date('birth_date')->nullable();
             $table->string('role')->default('user'); // 'user' | 'admin'
