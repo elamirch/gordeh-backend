@@ -46,7 +46,9 @@ class AuthController extends Controller
             }
             $access_token = JWTAuth::fromUser($user);
 
-            $user->otp_code = null;
+            if(env('APP_DEBUG')==false) {
+                $user->otp_code = null;
+            }
             $user->access_token = $access_token;
             $user->save();
 
