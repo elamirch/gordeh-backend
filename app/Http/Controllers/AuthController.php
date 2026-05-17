@@ -132,4 +132,16 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Logged out from all devices']);
     }
+
+    /**
+     * Send OTP
+    */
+    public function sendotp(Request $request)
+    {
+        $validated = $request->validate([
+            'phone_number' => 'required|regex:/^09\d{9}$/'
+        ]);
+
+        // TODO
+    }
 }
