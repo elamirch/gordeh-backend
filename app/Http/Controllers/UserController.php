@@ -12,11 +12,17 @@ class UserController extends Controller
 {
     public function index()
     {
+        if (auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         return User::all();
     }
 
     public function store(Request $request)
     {
+        if (auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         $data = $request->validate([
             'phone_number' => 'required|string|unique:users,phone_number',
             'first_name'   => 'nullable|string',
@@ -45,11 +51,17 @@ class UserController extends Controller
 
     public function show(User $user)
     {
+        if (auth()->id() !== $user->id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         return $user;
     }
 
     public function update(Request $request, User $user)
     {
+        if (auth()->id() !== $user->id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         $data = $request->validate([
             'phone_number' => 'nullable|string|unique:users,phone_number,' . $user->id,
             'first_name'   => 'nullable|string',
@@ -78,6 +90,9 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        if (auth()->id() !== $user->id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         $user->delete();
 
         return response()->json(null, 204);
