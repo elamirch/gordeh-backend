@@ -10,68 +10,20 @@ use Illuminate\Support\Str;
 class AuthController extends Controller
 {
     /**
-     * Unified authentication endpoint.
-     *
-     * - If the phone number does NOT exist → register the user
-     *   (an OTP is generated and stored; the client must later
-     *    call this same endpoint with the OTP to log in).
-     *
-     * - If the phone number EXISTS → OTP is required,
-     *   validate it and return the JWT.
+     * Send OTP
      * @unauthenticated
      */
-    public function authenticate(Request $request)
+    public function sendotp(Request $request)
     {
         $validated = $request->validate([
             'phone_number' => 'required|regex:/^09\d{9}$/',
         ]);
 
-        $user = User::where('phone_number', $validated['phone_number'])->first();
+        //Sending otp logic
 
-        if ($user) {
-            $validated = $request->validate([
-                'phone_number' => 'required|regex:/^09\d{9}$/',
-                'otp_code'     => 'required|integer|digits:4',
-            ]);
-
-            if (
-                !isset($validated['otp_code']) ||
-                $user->otp_code !== (int) $validated['otp_code']
-            ) {
-                return response()->json(['error' => 'Invalid OTP'], 401);
-            }
-
-            if (!$user->refresh_token) {
-                $user->refresh_token = Str::random(64);
-            }
-            $access_token = JWTAuth::fromUser($user);
-
-            if(env('APP_DEBUG')==false) {
-                $user->otp_code = null;
-            }
-            $user->access_token = $access_token;
-            $user->save();
-
-            return response()->json([
-                'message'        => 'Login successful',
-                'user'           => $user,
-                'access_token'   => $access_token,
-                'refresh_token'  => $user->refresh_token,
-            ]);
-        }
-
-        $user = User::create([
-            'phone_number'  => $validated['phone_number'],
-            'otp_code'      => 1111,           // dev OTP – replace with real generation
-            'role'          => 'user',
-            'refresh_token' => Str::random(64),
-        ]);
-
-        // OTP Logic shall be added
         return response()->json([
-            'message' => 'User registered. Please verify with the OTP sent to your phone.',
-            'user' => $user,
-        ], 201);
+            'message' => 'OTP was sent to your phone.'
+        ]);
     }
 
     /**
@@ -136,14 +88,61 @@ class AuthController extends Controller
     }
 
     /**
-     * Send OTP
+     * Unified authentication endpoint.
+     *
+     * @unauthenticated
     */
-    public function sendotp(Request $request)
+    public function authenticate(Request $request)
     {
         $validated = $request->validate([
-            'phone_number' => 'required|regex:/^09\d{9}$/'
+            'phone_number' => 'required|regex:/^09\d{9}$/',
+            'otp_code'     => 'required|integer|digits:4',
         ]);
 
-        // TODO
+        $user = User::where('phone_number', $validated['phone_number'])->first();
+
+        $otp_code = 1111; //TO BE SET LATER
+
+        if ($user) {
+            if (
+                !isset($validated['otp_code']) ||
+                $user->otp_code !== (int) $validated['otp_code']
+            ) {
+                return response()->json(['error' => 'Invalid OTP'], 401);
+            }
+
+            if (!$user->refresh_token) {
+                $user->refresh_token = Str::random(64);
+            }
+            $access_token = JWTAuth::fromUser($user);
+
+
+            $user->otp_code = env('APP_DEBUG') ? $otp_code : null;
+            $user->access_token = $access_token;
+            $user->save();
+
+            return response()->json([
+                'message'        => 'Login successful',
+                'user'           => $user,
+                'access_token'   => $access_token,
+                'refresh_token'  => $user->refresh_token,
+            ]);
+        }
+
+        $user = User::create([
+            'phone_number'  => $validated['phone_number'],
+            'otp_code'      => env('APP_DEBUG') ? 1111 : $otp_code,
+            'role'          => 'user',
+            'refresh_token' => Str::random(64),
+        ]);
+        $access_token = JWTAuth::fromUser($user);
+
+        // OTP Logic shall be added
+        return response()->json([
+            'message' => 'User registered.',
+            'user' => $user,
+            'access_token'   => $access_token,
+            'refresh_token'  => $user->refresh_token,
+        ], 201);
     }
 }

@@ -9,8 +9,8 @@ use App\Http\Controllers\LabTestController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\AdminDashboardController;
 
-Route::post('auth/authenticate', [AuthController::class, 'authenticate']);
 Route::post('auth/send-otp', [AuthController::class, 'sendotp']);
+Route::post('auth/authenticate', [AuthController::class, 'authenticate']);
 Route::post('auth/refresh', [AuthController::class, 'refreshTokens']);
 
 
