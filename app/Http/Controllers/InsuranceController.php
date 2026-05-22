@@ -14,6 +14,10 @@ class InsuranceController extends Controller
      */
     public function index(Request $request)
     {
+        if (auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
+
         $page = max(1, (int) $request->query('page', 1));
         $limit = $request->has('limit') ? (int) $request->query('limit') : 10;
         if ($limit <= 0 || $limit > 100) $limit = 10;
@@ -85,6 +89,9 @@ class InsuranceController extends Controller
     public function show($id)
     {
         $insurance = Insurance::with('creator')->find($id);
+        if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         if (! $insurance) {
             return response()->json(['message' => 'Not found'], 404);
         }
@@ -105,11 +112,13 @@ class InsuranceController extends Controller
         ]);
 
         $insurance = Insurance::find($id);
+        if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         if (! $insurance) {
             return response()->json(['message' => 'Not found'], 404);
         }
 
-        // Optionally add permission checks here (owner/admin)
         try {
             if (isset($data['status'])) $insurance->status = $data['status'];
             if (isset($data['first_name'])) $insurance->first_name = $data['first_name'];
@@ -127,16 +136,18 @@ class InsuranceController extends Controller
     }
 
     /**
-     * Optional: delete insurance
+     * Delete insurance
      */
     public function destroy($id)
     {
         $insurance = Insurance::find($id);
+        if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
         if (! $insurance) {
             return response()->json(['message' => 'Not found'], 404);
         }
 
-        // Optionally add permission checks here (owner/admin)
         $insurance->delete();
 
         return response()->json(null, 204);
