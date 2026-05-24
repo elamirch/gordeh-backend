@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
-use Illuminate\Support\Str;
+use Tymon\JWTAuth\Exceptions\TokenExpiredException;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -48,28 +49,16 @@ class AuthController extends Controller
     */
     public function refreshTokens(Request $request)
     {
-        $request->validate([
-            'refresh_token' => 'required|string',
-        ]);
-
-        $user = User::where('refresh_token', $request->refresh_token)->first();
-
-        if (!$user) {
-            return response()->json(['error' => 'Invalid refresh token'], 401);
+        try {
+            $newToken = JWTAuth::refresh(JWTAuth::getToken());
+            return response()->json([
+                'access_token' => $newToken,
+                'token_type' => 'bearer',
+                'expires_in' => config('jwt.ttl')
+            ]);
+        } catch (TokenExpiredException $e) {
+            return response()->json(['error' => 'Token expired, please login again'], 401);
         }
-
-        // Optional: rotate refresh token (recommended for security)
-        $newRefreshToken = Str::random(64);
-        $user->refresh_token = $newRefreshToken;
-        $user->save();
-
-        // Generate new access token
-        $newAccessToken = JWTAuth::fromUser($user);
-
-        return response()->json([
-            'access_token'  => $newAccessToken,
-            'refresh_token' => $newRefreshToken,
-        ]);
     }
     
     /**
@@ -77,12 +66,10 @@ class AuthController extends Controller
     */
     public function logoutAllDevices()
     {
-        $user = auth()->user();
-        $user->refresh_token = null;
+        $user = JWTAuth::user(); // or JWTAuth::user()
+    
+        $user->last_logout = Carbon::now();
         $user->save();
-
-        // Invalidate current JWT
-        JWTAuth::invalidate(JWTAuth::getToken());
 
         return response()->json(['message' => 'Logged out from all devices']);
     }
@@ -111,11 +98,7 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Invalid OTP'], 401);
             }
 
-            if (!$user->refresh_token) {
-                $user->refresh_token = Str::random(64);
-            }
             $access_token = JWTAuth::fromUser($user);
-
 
             $user->otp_code = env('APP_DEBUG') ? $otp_code : null;
             $user->access_token = $access_token;
@@ -124,8 +107,7 @@ class AuthController extends Controller
             return response()->json([
                 'message'        => 'Login successful',
                 'user'           => $user,
-                'access_token'   => $access_token,
-                'refresh_token'  => $user->refresh_token,
+                'access_token' => $access_token,
             ]);
         }
 
@@ -133,7 +115,6 @@ class AuthController extends Controller
             'phone_number'  => $validated['phone_number'],
             'otp_code'      => env('APP_DEBUG') ? 1111 : $otp_code,
             'role'          => 'user',
-            'refresh_token' => Str::random(64),
         ]);
         $access_token = JWTAuth::fromUser($user);
 
@@ -141,8 +122,7 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'User registered.',
             'user' => $user,
-            'access_token'   => $access_token,
-            'refresh_token'  => $user->refresh_token,
+            'access_token' => $access_token,
         ], 201);
     }
 }

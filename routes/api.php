@@ -14,7 +14,7 @@ Route::post('auth/authenticate', [AuthController::class, 'authenticate']);
 Route::post('auth/refresh', [AuthController::class, 'refreshTokens']);
 
 
-Route::middleware('auth:api')->group(function () {
+Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
 
     // --- Auth ---
     Route::get('auth/profile', [AuthController::class, 'profile']);
