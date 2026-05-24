@@ -76,11 +76,7 @@ class UserController extends Controller
             'blood_type'   => 'nullable|string',
             'age'          => 'nullable|integer',
             'profile_img_url' => 'nullable|string|unique:users,profile_img_url,' . $user->id,
-            'otp_code'     => 'nullable|integer', //May be undeeded
-            'otp_code_expiration' => 'nullable|date',
-            'refresh_token' => 'nullable|string', //May be undeeded as we're using sanctum
             'birth_date'    => 'nullable|date',
-            'role'          => 'nullable|string|in:user,admin',
         ]);
 
         $user->update($data);
