@@ -25,20 +25,10 @@ return new class extends Migration
             $table->string('profile_img_url')->unique()->nullable();
             $table->integer('otp_code')->nullable();
             $table->dateTime('otp_code_expiration')->nullable();
-            $table->text('access_token')->nullable();
-            $table->text('refresh_token')->nullable();
+            $table->timestamp('last_logout')->nullable();
             $table->date('birth_date')->nullable();
             $table->string('role')->default('user'); // 'user' | 'admin'
             $table->timestamps();
-        });
-
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
-            $table->string('ip_address', 45)->nullable();
-            $table->text('user_agent')->nullable();
-            $table->longText('payload');
-            $table->integer('last_activity')->index();
         });
     }
 
