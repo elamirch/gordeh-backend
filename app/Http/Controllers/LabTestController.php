@@ -187,11 +187,11 @@ class LabTestController extends Controller
         }
 
         $result = DB::table('lab_tests as t')
-            ->select(DB::raw("DATE_TRUNC('month', t.created_at) as month"))
+            ->selectRaw("DATE_FORMAT(t.created_at, '%Y-%m-01') as month")
             ->selectRaw("AVG(t.gfr) as avgGfr")
             ->where('t.user_id', $user->id)
-            ->groupBy(DB::raw("DATE_TRUNC('month', t.created_at)"))
-            ->orderBy(DB::raw("DATE_TRUNC('month', t.created_at)"), 'asc')
+            ->groupByRaw("DATE_FORMAT(t.created_at, '%Y-%m-01')")
+            ->orderBy('month', 'asc')
             ->get();
 
         $mapped = $result->map(function ($row) {
@@ -204,7 +204,7 @@ class LabTestController extends Controller
             $monthLabel = sprintf('%04d-%02d', $j['jy'], $j['jm']);
             return [
                 'month' => $monthLabel,
-                'avgGfr' => (float) $row->avggfr,
+                'avgGfr' => (float) $row->avgGfr,
             ];
         });
 
@@ -215,10 +215,10 @@ class LabTestController extends Controller
     public function allUsersMonthlyAvgGfr(): JsonResponse
     {
         $result = DB::table('lab_tests as t')
-            ->select(DB::raw("DATE_TRUNC('month', t.created_at) as month"))
+            ->selectRaw("DATE_FORMAT(t.created_at, '%Y-%m-01') as month")
             ->selectRaw("AVG(t.gfr) as avgGfr")
-            ->groupBy(DB::raw("DATE_TRUNC('month', t.created_at)"))
-            ->orderBy(DB::raw("DATE_TRUNC('month', t.created_at)"), 'asc')
+            ->groupByRaw("DATE_FORMAT(t.created_at, '%Y-%m-01')")
+            ->orderBy('month', 'asc')
             ->get();
 
         $mapped = $result->map(function ($row) {
