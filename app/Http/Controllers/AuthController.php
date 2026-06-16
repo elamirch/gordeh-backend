@@ -50,11 +50,13 @@ class AuthController extends Controller
     public function refreshTokens(Request $request)
     {
         try {
-            $newToken = JWTAuth::refresh(JWTAuth::getToken());
+            $newToken = JWTAuth::claims(
+                ['expires_in' => config('jwt.ttl') * 60]
+                )->setToken(JWTAuth::getToken())
+                ->refresh();
             return response()->json([
                 'access_token' => $newToken,
-                'token_type' => 'bearer',
-                'expires_in' => config('jwt.ttl')
+                'token_type' => 'bearer'
             ]);
         } catch (TokenExpiredException $e) {
             return response()->json(['error' => 'Token expired, please login again'], 401);
@@ -88,7 +90,7 @@ class AuthController extends Controller
 
         $user = User::where('phone_number', $validated['phone_number'])->first();
 
-        $otp_code = 1111; //TO BE SET LATER
+        $otp_code = env('APP_DEBUG') ? 1111 : null; //OTP Logic will be done later
 
         if ($user) {
             if (
@@ -98,9 +100,11 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Invalid OTP'], 401);
             }
 
-            $access_token = JWTAuth::fromUser($user);
+            $access_token = JWTAuth::claims(
+                ['expires_in' => config('jwt.ttl') * 60]
+                )->fromUser($user);
 
-            $user->otp_code = env('APP_DEBUG') ? $otp_code : null;
+            $user->otp_code = $otp_code;
             $user->save();
 
             return response()->json([
