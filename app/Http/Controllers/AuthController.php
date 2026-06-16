@@ -50,9 +50,10 @@ class AuthController extends Controller
     public function refreshTokens(Request $request)
     {
         try {
-            $newToken = JWTAuth::claims(
-                ['expires_in' => config('jwt.ttl') * 60]
-                )->setToken(JWTAuth::getToken())
+            $newToken = JWTAuth::claims([
+                'expires_in' => config('jwt.ttl') * 60,
+                'refresh_ttl' => config('jwt.refresh_ttl') * 60
+                ])->setToken(JWTAuth::getToken())
                 ->refresh();
             return response()->json([
                 'access_token' => $newToken,
@@ -100,9 +101,10 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Invalid OTP'], 401);
             }
 
-            $access_token = JWTAuth::claims(
-                ['expires_in' => config('jwt.ttl') * 60]
-                )->fromUser($user);
+            $access_token = JWTAuth::claims([
+                'expires_in' => config('jwt.ttl') * 60,
+                'refresh_ttl' => config('jwt.refresh_ttl') * 60
+                ])->fromUser($user);
 
             $user->otp_code = $otp_code;
             $user->save();
