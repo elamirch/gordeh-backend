@@ -19,8 +19,7 @@ return new class extends Migration
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
-
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
         });
     }
 
