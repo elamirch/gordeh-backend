@@ -15,22 +15,13 @@ class InsuranceController extends Controller
     public function index(Request $request)
     {
         if (auth()->user()->role !== 'admin') {
-            abort(403, 'Unauthorized');
+            abort(403);
         }
 
-        $page = max(1, (int) $request->query('page', 1));
-        $limit = $request->has('limit') ? (int) $request->query('limit') : 10;
-        if ($limit <= 0 || $limit > 100) $limit = 10;
+        $perPage = min(max((int) $request->query('limit', 10), 1), 100);
+        $insurances = Insurance::orderBy('created_at', 'desc')->paginate($perPage);
 
-        $query = Insurance::orderBy('created_at', 'desc');
-
-        $count = $query->count();
-        $data = $query->skip(($page - 1) * $limit)->take($limit)->get();
-
-        return response()->json([
-            'data' => $data,
-            'count' => $count,
-        ]);
+        return response()->json($insurances);
     }
 
     /**
