@@ -25,10 +25,7 @@ Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
     Route::apiResource('users', UserController::class);
 
     // --- Stored Files ---
-    Route::apiResource('stored-files', StoredFileController::class);
-
-    Route::post('files/ocr', [StoredFileController::class, 'ocrSaveFile']);
-    Route::post('files/profile', [StoredFileController::class, 'profileSaveFile']);
+    Route::apiResource('stored-files', StoredFileController::class)->except(['update']);
 
     // --- Lab Tests ---
     Route::post('lab-tests', [LabTestController::class, 'store']);
