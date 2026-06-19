@@ -121,7 +121,10 @@ class AuthController extends Controller
             'otp_code'      => env('APP_DEBUG') ? 1111 : $otp_code,
             'role'          => 'user',
         ]);
-        $access_token = JWTAuth::fromUser($user);
+        $access_token = JWTAuth::claims([
+                'expires_in' => config('jwt.ttl') * 60,
+                'refresh_ttl' => config('jwt.refresh_ttl') * 60
+                ])->fromUser($user);
 
         // OTP Logic shall be added
         return response()->json([

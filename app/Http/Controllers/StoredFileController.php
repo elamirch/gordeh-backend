@@ -15,14 +15,21 @@ class StoredFileController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'url'               => 'nullable|string',
+            'file'              => 'required|file|mimes:jpg,png,pdf|max:10240',
             'fileName'          => 'nullable|string',
             'originalFileName'  => 'nullable|string',
             'mainImageUrl'      => 'nullable|string',
         ]);
 
-        $data['user_id'] = auth()->id();
+        if ($request->hasFile('file')) {
+            $uploadedFile = $request->file('file');
+            
+            $data['url'] = $uploadedFile->store('uploads');
+            $data['fileName'] = $data['fileName'] ?? $uploadedFile->hashName();
+            $data['originalFileName'] = $data['originalFileName'] ?? $uploadedFile->getClientOriginalName(); // file.originalname
+        }
 
+        $data['user_id'] = auth()->id();
         $file = StoredFile::create($data);
 
         return response()->json($file, 201);
@@ -62,68 +69,5 @@ class StoredFileController extends Controller
         $storedFile->delete();
 
         return response()->json(null, 204);
-    }
-
-    public function ocrSaveFile(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'url' => 'required|string',
-            'fileName' => 'required|string',
-            'originalFileName' => 'required|string',
-            'mainImageUrl' => 'nullable|string',
-        ]);
-
-        try {
-            $data['user_id'] = auth()->id();
-            $data['mainImageUrl'] = $data['mainImageUrl'] ?? $data['url'];
-
-            $file = StoredFile::create($data);
-
-            return response()->json([
-                'message' => 'uploaded successfully',
-                'data' => [
-                    'url' => $file->url,
-                    'fileName' => $file->fileName,
-                    'originalFileName' => $file->originalFileName,
-                    'mainImageUrl' => $file->mainImageUrl,
-                ],
-            ], 201);
-        } catch (\Throwable $e) {
-            Log::error($e);
-            return response()->json(['message' => 'Internal server error'], 500);
-        }
-    }
-
-    /**
-     * Save a profile image file (same behavior as OCR save)
-     */
-    public function profileSaveFile(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'url' => 'required|string',
-            'fileName' => 'required|string',
-            'originalFileName' => 'required|string',
-            'mainImageUrl' => 'nullable|string',
-        ]);
-
-        try {
-            $data['user_id'] = auth()->id();
-            $data['mainImageUrl'] = $data['mainImageUrl'] ?? $data['url'];
-
-            $file = StoredFile::create($data);
-
-            return response()->json([
-                'message' => 'uploaded successfully',
-                'data' => [
-                    'url' => $file->url,
-                    'fileName' => $file->fileName,
-                    'originalFileName' => $file->originalFileName,
-                    'mainImageUrl' => $file->mainImageUrl,
-                ],
-            ], 201);
-        } catch (\Throwable $e) {
-            Log::error($e);
-            return response()->json(['message' => 'Internal server error'], 500);
-        }
     }
 }
