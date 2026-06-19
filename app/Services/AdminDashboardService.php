@@ -8,70 +8,70 @@ use Illuminate\Support\Facades\DB;
 
 class AdminDashboardService
 {
-    /**
-     * Return dashboard stats similar to the NestJS service.
-     *
-     * @return array
-     */
     public function getDashboardStats(): array
     {
-        // tests last 30 days
-        $totalTestsLast30Days = LabTest::whereRaw("created_at >= NOW() - INTERVAL '30 days'")->count();
+        // Tests in last 30 days (Carbon is safe)
+        $totalTestsLast30Days = LabTest::where('created_at', '>=', now()->subDays(30))->count();
 
-        // all users with role = user
+        // Total users with role 'user'
         $totalUsers = User::where('role', 'user')->count();
 
-        // age distribution (Postgres filters)
+        // Age distribution (MySQL/MariaDB compatible)
         $ageDistributionRaw = DB::table('users')
             ->selectRaw("
-                COUNT(*) FILTER (WHERE age < 40 AND role = 'user') AS under40,
-                COUNT(*) FILTER (WHERE age BETWEEN 40 AND 60 AND role = 'user') AS between40and60,
-                COUNT(*) FILTER (WHERE age > 60 AND role = 'user') AS above60
+                SUM(CASE WHEN age < 40 THEN 1 ELSE 0 END) AS under40,
+                SUM(CASE WHEN age BETWEEN 40 AND 60 THEN 1 ELSE 0 END) AS between40and60,
+                SUM(CASE WHEN age > 60 THEN 1 ELSE 0 END) AS above60
             ")
+            ->where('role', 'user')
             ->first();
 
         $ageDistribution = [
-            'under40' => (int) ($ageDistributionRaw->under40 ?? 0),
+            'under40'        => (int) ($ageDistributionRaw->under40 ?? 0),
             'between40and60' => (int) ($ageDistributionRaw->between40and60 ?? 0),
-            'above60' => (int) ($ageDistributionRaw->above60 ?? 0),
+            'above60'        => (int) ($ageDistributionRaw->above60 ?? 0),
         ];
 
-        // every user's last test (Postgres DISTINCT ON creator_id)
-        // adjust column names if your lab_tests creator foreign key differs
+        // Each user's last test (MySQL/MariaDB compatible)
         $lastTests = DB::select("
-            SELECT DISTINCT ON (user_id) id, stage, user_id
-            FROM lab_tests
-            ORDER BY user_id, created_at DESC
+            SELECT lt.id, lt.stage, lt.user_id
+            FROM lab_tests lt
+            INNER JOIN (
+                SELECT user_id, MAX(created_at) AS max_created
+                FROM lab_tests
+                GROUP BY user_id
+            ) latest ON lt.user_id = latest.user_id AND lt.created_at = latest.max_created
         ");
 
-        // stage distribution from last tests
+        // Stage distribution from last tests
         $st1 = $st2 = $st3 = $st4 = $st5 = 0;
         foreach ($lastTests as $row) {
             $stage = (int) ($row->stage ?? 0);
-            if ($stage === 1) $st1++;
-            elseif ($stage === 2) $st2++;
-            elseif ($stage === 3) $st3++;
-            elseif ($stage === 4) $st4++;
-            elseif ($stage === 5) $st5++;
+            match ($stage) {
+                1 => $st1++,
+                2 => $st2++,
+                3 => $st3++,
+                4 => $st4++,
+                5 => $st5++,
+                default => null,
+            };
         }
 
-        // tests stage > 3 (count among last tests)
-        $testsStageAbove3 = array_reduce($lastTests, function ($carry, $r) {
-            return $carry + ((int) ($r->stage ?? 0) > 3 ? 1 : 0);
-        }, 0);
+        // Tests with stage > 3 among last tests
+        $testsStageAbove3 = count(array_filter($lastTests, fn($r) => ((int) ($r->stage ?? 0)) > 3));
 
         return [
             'totalTestsLast30Days' => $totalTestsLast30Days,
-            'totalUsers' => $totalUsers,
-            'ageDistribution' => $ageDistribution,
-            'stageDistribution' => [
+            'totalUsers'           => $totalUsers,
+            'ageDistribution'      => $ageDistribution,
+            'stageDistribution'    => [
                 'st1' => $st1,
                 'st2' => $st2,
                 'st3' => $st3,
                 'st4' => $st4,
                 'st5' => $st5,
             ],
-            'testsStageAbove3' => $testsStageAbove3,
+            'testsStageAbove3'     => $testsStageAbove3,
         ];
     }
 }
