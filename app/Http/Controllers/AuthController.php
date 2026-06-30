@@ -23,24 +23,30 @@ class AuthController extends Controller
 
         $curl = new Curl;
         $SMS_API_URL = env("SMS_API_URL");
-        $otp_code = rand(10000, 99999);
+        $otp_code = env('APP_DEBUG') ? 11111 : rand(10000, 99999);
 
         $user = User::where('phone_number', $validated['phone_number'])->first();
         $user->otp_code = $otp_code;
         $user->save();
 
-        $payload = http_build_query([
-            'receptor' => $validated['phone_number'],
-            'token' => $otp_code,
-            'template' => 'otp-kcp'
-        ]);
+        if(env('APP_DEBUG')) {
+            return response()->json([
+                'message' => 'success: on debug mode, otp is 11111',
+            ]);
+        } else {
+            $payload = http_build_query([
+                'receptor' => $validated['phone_number'],
+                'token' => $otp_code,
+                'template' => 'otp-kcp'
+            ]);
 
-        $response = json_decode($curl->curl($SMS_API_URL, $payload));
+            $response = json_decode($curl->curl($SMS_API_URL, $payload));
 
-        return response()->json([
-            'message' => 'success: OTP request sent',
-            'API Response' => $response
-        ]);
+            return response()->json([
+                'message' => 'success: OTP request sent',
+                'API Response' => $response
+            ]);
+        }
     }
 
     /**
@@ -63,7 +69,7 @@ class AuthController extends Controller
     /**
      * Refresh tokens
     */
-    public function refreshTokens(Request $request)
+    public function refreshTokens()
     {
         try {
             $newToken = JWTAuth::claims([
@@ -85,12 +91,19 @@ class AuthController extends Controller
     */
     public function logoutAllDevices()
     {
-        $user = JWTAuth::user(); // or JWTAuth::user()
+        $user = JWTAuth::user();
     
         $user->last_logout = Carbon::now();
         $user->save();
 
         return response()->json(['message' => 'Logged out from all devices']);
+    }
+
+    /**
+     * Get token info
+    */
+    public function tokenInfo() {
+        return response()->json(['Token info' => JWTAuth::getPayload()]);
     }
 
     /**
