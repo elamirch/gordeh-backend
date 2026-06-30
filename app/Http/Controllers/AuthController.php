@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Carbon\Carbon;
+use App\Services\Curl;
 
 class AuthController extends Controller
 {
@@ -20,10 +21,25 @@ class AuthController extends Controller
             'phone_number' => 'required|regex:/^09\d{9}$/',
         ]);
 
-        //Sending otp logic
+        $curl = new Curl;
+        $SMS_API_URL = env("SMS_API_URL");
+        $otp_code = rand(10000, 99999);
+
+        $user = User::where('phone_number', $validated['phone_number'])->first();
+        $user->otp_code = $otp_code;
+        $user->save();
+
+        $payload = http_build_query([
+            'receptor' => $validated['phone_number'],
+            'token' => $otp_code,
+            'template' => 'otp-kcp'
+        ]);
+
+        $response = json_decode($curl->curl($SMS_API_URL, $payload));
 
         return response()->json([
-            'message' => 'OTP was sent to your phone.'
+            'message' => 'success: OTP request sent',
+            'API Response' => $response
         ]);
     }
 
@@ -86,18 +102,17 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'phone_number' => 'required|regex:/^09\d{9}$/',
-            'otp_code'     => 'required|integer|digits:4',
+            'otp_code'     => 'required|integer|digits:5',
         ]);
 
         $user = User::where('phone_number', $validated['phone_number'])->first();
 
-        $otp_code = env('APP_DEBUG') ? 1111 : null; //OTP Logic will be done later
+        $otp_code = env('APP_DEBUG') ? 11111 : $user->otp_code;
 
         if ($user) {
-            if (
-                !isset($validated['otp_code']) ||
-                $user->otp_code !== (int) $validated['otp_code']
-            ) {
+            if (!isset($validated['otp_code']) ||
+                $otp_code != (int) $validated['otp_code']) 
+            {
                 return response()->json(['error' => 'Invalid OTP'], 401);
             }
 
@@ -106,7 +121,7 @@ class AuthController extends Controller
                 'refresh_ttl' => config('jwt.refresh_ttl') * 60
                 ])->fromUser($user);
 
-            $user->otp_code = $otp_code;
+            $user->otp_code = null;
             $user->save();
 
             return response()->json([
@@ -118,7 +133,7 @@ class AuthController extends Controller
 
         $user = User::create([
             'phone_number'  => $validated['phone_number'],
-            'otp_code'      => env('APP_DEBUG') ? 1111 : $otp_code,
+            'otp_code'      => $otp_code,
             'role'          => 'user',
         ]);
         $access_token = JWTAuth::claims([
