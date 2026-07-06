@@ -29,8 +29,8 @@ class SendSMS {
 
         $payload = http_build_query([
             'receptor' => $phoneNumber,
-            'token' => $identification_code,
-            'token2' => $userFirstName,
+            'token' => $userFirstName,
+            'token2' => $identification_code,
             'template' => 'insurance-generated'
         ]);
 

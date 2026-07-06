@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\ScheduledSms;
+use App\Models\ScheduledSMS;
 use App\Services\SendSMS;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -20,7 +20,7 @@ class SendSmsJob implements ShouldQueue
 
     public function handle(SendSMS $SendSMS)
     {
-        $sms = ScheduledSms::find($this->smsId);
+        $sms = ScheduledSMS::find($this->smsId);
 
         if (!$sms || $sms->status !== 'processing') {
             return;
@@ -29,7 +29,7 @@ class SendSmsJob implements ShouldQueue
         try {
             if($sms->template == "cron-assess-reminder-7d") {
                 $SendSMS->assessmentReminder7d($sms->phone_number, $sms->token, $sms->token2, $sms->token3);
-            } if(substr($sms->template, 0, 11) == "cron-assess") {
+            } elseif(substr($sms->template, 0, 11) == "cron-assess") {
                 $SendSMS->assessmentReminder($sms->phone_number, $sms->token, $sms->token2, $sms->template);
             } else {
                 $SendSMS->insuranceReminder($sms->phone_number, $sms->token, $sms->template);

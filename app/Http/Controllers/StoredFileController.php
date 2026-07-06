@@ -24,7 +24,7 @@ class StoredFileController extends Controller
         if ($request->hasFile('file')) {
             $uploadedFile = $request->file('file');
             
-            $data['url'] = $uploadedFile->store('uploads');
+            $data['url'] = $uploadedFile->store('uploads', 'public');
             $data['fileName'] = $data['fileName'] ?? $uploadedFile->hashName();
             $data['originalFileName'] = $data['originalFileName'] ?? $uploadedFile->getClientOriginalName(); // file.originalname
         }

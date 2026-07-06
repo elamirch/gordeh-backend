@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\ScheduledSms;
+use App\Models\ScheduledSMS;
 use App\Jobs\SendSmsJob;
 
 class CheckScheduledSms extends Command
@@ -27,10 +27,9 @@ class CheckScheduledSms extends Command
      */
     public function handle()
     {
-        ScheduledSms::where('status', 'pending')
+        ScheduledSMS::where('status', 'pending')
             ->where('send_at', '<=', now())
             ->chunkById(100, function ($messages) {
-
                 foreach ($messages as $sms) {
 
                     $sms->update([
