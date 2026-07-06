@@ -4,8 +4,15 @@ namespace App\Services;
 
 class SendSMS {
 
-    private $SMS_API_URL = env("SMS_API_URL");
-    private $curl = new Curl;
+    private $SMS_API_URL;
+    private $curl;
+
+    public function __construct()
+    {
+        $this->SMS_API_URL = env('SMS_API_URL');
+        $this->curl = new Curl;
+    }
+    
     
     public function otp($phoneNumber, $otp_code) {
 
