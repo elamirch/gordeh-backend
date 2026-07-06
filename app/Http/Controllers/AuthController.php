@@ -23,7 +23,10 @@ class AuthController extends Controller
 
         $otp_code = env('APP_DEBUG') ? 11111 : rand(10000, 99999);
 
-        $user = User::where('phone_number', $validated['phone_number'])->first();
+        $user = User::firstOrCreate(
+            ['phone_number' => $validated['phone_number']],
+            ['otp_code' => $otp_code, 'role' => 'user']
+        );
         $user->otp_code = $otp_code;
         $user->save();
 
@@ -147,7 +150,6 @@ class AuthController extends Controller
                 'refresh_ttl' => config('jwt.refresh_ttl') * 60
                 ])->fromUser($user);
 
-        // OTP Logic shall be added
         return response()->json([
             'message' => 'User registered.',
             'user' => $user,
