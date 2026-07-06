@@ -8,13 +8,13 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create('insurance', function (Blueprint $table) {
-            $table->bigIncrements('id');
+        Schema::create('insurances', function (Blueprint $table) {
+            $table->id();
             $table->string('national_code', 10);
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
             $table->string('insurance_type');
-            $table->string('identification_code', 10);
+            $table->string('identification_code', 10)->nullable();
             $table->enum('status', ['created', 'in_progress', 'completed'])->default('created');
             $table->unsignedBigInteger('user_id')->nullable();
             $table->timestamps();

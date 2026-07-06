@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
-use App\Models\ScheduledSms;
+use App\Models\ScheduledSMS;
 
 class LabTestController extends Controller
 {
@@ -51,44 +51,110 @@ class LabTestController extends Controller
             //Schedule assessment reminder
             if($gfrResult['gfr'] > 89) {
                 $stage = 1;
+                $dateForAssess7d = now()->addDays(358);
+                $dateForAssessDue = now()->addDays(365);
+                $dateForAssessDue30d = now()->addDays(395);
+
+                $jalaliDate = $this->gregorianToJalali(
+                    $dateForAssess7d->year,
+                    $dateForAssess7d->month,
+                    $dateForAssess7d->day
+                );
+
+                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
             } elseif ($gfrResult['gfr'] > 59) {
                 $stage = 2;
+                $dateForAssess7d = now()->addDays(175);
+                $dateForAssessDue = now()->addDays(182);
+                $dateForAssessDue30d = now()->addDays(212);
+
+                $jalaliDate = $this->gregorianToJalali(
+                    $dateForAssess7d->year,
+                    $dateForAssess7d->month,
+                    $dateForAssess7d->day
+                );
+
+                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
             } elseif ($gfrResult['gfr'] > 29) {
                 $stage = 3;
-            }
-            elseif ($gfrResult['gfr'] > 14) {
+                $dateForAssess7d = now()->addDays(113);
+                $dateForAssessDue = now()->addDays(120);
+                $dateForAssessDue14d = now()->addDays(134);
+
+                $jalaliDate = $this->gregorianToJalali(
+                    $dateForAssess7d->year,
+                    $dateForAssess7d->month,
+                    $dateForAssess7d->day
+                );
+
+                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
+            } elseif ($gfrResult['gfr'] > 14) {
                 $stage = 4;
+                $dateForAssess7d = now()->addDays(53);
+                $dateForAssessDue = now()->addDays(60);
+                $dateForAssessDue14d = now()->addDays(74);
+
+                $jalaliDate = $this->gregorianToJalali(
+                    $dateForAssess7d->year,
+                    $dateForAssess7d->month,
+                    $dateForAssess7d->day
+                );
+
+                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
             } else {
-                $stage = 1;
+                $stage = 5;
+                $dateForAssess7d = now()->addDays(23);
+                $dateForAssessDue = now()->addDays(30);
+                $dateForAssessDue14d = now()->addDays(44);
+                
+                $jalaliDate = $this->gregorianToJalali(
+                    $dateForAssess7d->year,
+                    $dateForAssess7d->month,
+                    $dateForAssess7d->day
+                );
+
+                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
             }
-            
-            $date = now()->addDays(365);
 
             //7 days before date reminder
+            $dateForAssess7d = now()->addDays(358);
             $this->scheduleAssessmentReminderSMS(
-                'cron-assess-reminder-7d',
-                $stage,
-                $this->gregorianToJalali($date->year + 1, $date->month, $date->day)
+                template: 'cron-assess-reminder-7d',
+                token2: $stage,
+                token3: $jalaliDateDecoded,
+                days: $dateForAssess7d,
+                labTestId: $test->id
             );
 
             //Day reminder
             $this->scheduleAssessmentReminderSMS(
-                'cron-assess-reminder',
-                $stage
+                template: 'cron-assess-reminder',
+                token2: $stage,
+                token3: null,
+                days: $dateForAssessDue,
+                labTestId: $test->id
             );
 
-            //Due reminder after 30 days
-            $this->scheduleAssessmentReminderSMS(
-                'cron-assess-reminder-after',
-                $stage
-            );
 
-            //Due reminder after 14 for high risk users
-            $this->scheduleAssessmentReminderSMS(
-                'cron-assess-reminder-after-14d-onlyhigh',
-                $stage
-            );
-            
+            if($stage < 3) {
+                //Due reminder after 30 days
+                $this->scheduleAssessmentReminderSMS(
+                    template: 'cron-assess-reminder-after',
+                    token2: $stage,
+                    token3: null,
+                    days: $dateForAssessDue30d,
+                    labTestId: $test->id
+                );
+            } else {
+                //Due reminder after 14 for high risk users
+                $this->scheduleAssessmentReminderSMS(
+                    template: 'cron-assess-reminder-after-14d-onlyhigh',
+                    token2: $stage,
+                    token3: null,
+                    days: $dateForAssessDue14d,
+                    labTestId: $test->id
+                );
+            }
 
             return response()->json([
                 'message' => 'test saved successfully.',
@@ -317,15 +383,17 @@ class LabTestController extends Controller
         return ['jy' => $jy, 'jm' => $jm, 'jd' => $jd];
     }
 
-    private function scheduleAssessmentReminderSMS($template, $token2 = null, $token3 = null, $days) {
-        ScheduledSms::create([
-            'user_id' => auth()->id(),
-            'phone_number' => auth()->phone_number,
+    private function scheduleAssessmentReminderSMS($template, $token2, $token3, $days, $labTestId) {
+        $user = auth()->user();
+        ScheduledSMS::create([
+            'user_id' => $user->id,
+            'phone_number' => $user->phone_number,
             'template' => $template,
-            'token' => auth()->first_name,
+            'token' => $user->first_name,
             'token2' => $token2,
-            'token3' => $token2,
+            'token3' => $token3,
             'send_at' => now()->addDays($days),
+            'lab_test_id' => $labTestId
         ]);
     }
 }

@@ -15,6 +15,8 @@ class ScheduledSms extends Model
         'token3',
         'send_at',
         'status',
+        'insurance_id',
+        'lab_test_id',
     ];
 
     protected $casts = [

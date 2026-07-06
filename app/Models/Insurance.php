@@ -9,13 +9,14 @@ class Insurance extends Model
 {
     use HasFactory;
 
-    protected $table = 'insurance';
+    protected $table = 'insurances';
 
     protected $fillable = [
         'national_code',
         'first_name',
         'last_name',
         'insurance_type',
+        'identification_code',
         'status',
         'user_id',
     ];

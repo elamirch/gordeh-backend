@@ -18,6 +18,16 @@ return new class extends Migration
                 ->nullable()
                 ->constrained()
                 ->nullOnDelete();
+            
+            $table->foreignId('insurance_id')
+                ->nullable()
+                ->constrained()
+                ->cascadeOnDelete();
+
+            $table->foreignId('lab_test_id')
+                ->nullable()
+                ->constrained()
+                ->cascadeOnDelete();
 
             $table->string('phone_number');
             $table->string('template');

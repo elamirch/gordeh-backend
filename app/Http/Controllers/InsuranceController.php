@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Insurance;
 use App\Models\User;
-use App\Models\ScheduledSms;
+use App\Models\ScheduledSMS;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -62,6 +62,8 @@ class InsuranceController extends Controller
             'insurance_type' => ['required','string'],
             'first_name'     => ['nullable','string'],
             'last_name'      => ['nullable','string'],
+            'identification_code' => 'nullable|string|size:10',
+            'status' => ['nullable', Rule::in(['created','in_progress', 'completed'])],
         ]);
 
         try {
@@ -71,9 +73,9 @@ class InsuranceController extends Controller
             $insurance = Insurance::create($data);
 
             //Creating reminders
-            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-7d', 7);
-            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-14d', 14);
-            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-25d', 25);
+            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-7d', 7, $insurance->id);
+            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-14d', 14, $insurance->id);
+            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-25d', 25, $insurance->id);
 
             return response()->json($insurance, 201);
         } catch (\Throwable $e) {
@@ -118,11 +120,11 @@ class InsuranceController extends Controller
 
         try {
             if (isset($data['status'])) $insurance->status = $data['status'];
-            if (isset($data['first_name'])) $insurance->first_name = $data['first_name'];
-            if (isset($data['last_name'])) $insurance->last_name = $data['last_name'];
-            if (isset($data['insurance_type'])) $insurance->insurance_type = $data['insurance_type'];
-            if (isset($data['national_code'])) $insurance->national_code = $data['national_code'];
-            if (isset($data['identification_code'])) $insurance->identification_code = $data['identification_code'];
+            // if (isset($data['first_name'])) $insurance->first_name = $data['first_name'];
+            // if (isset($data['last_name'])) $insurance->last_name = $data['last_name'];
+            // if (isset($data['insurance_type'])) $insurance->insurance_type = $data['insurance_type'];
+            // if (isset($data['national_code'])) $insurance->national_code = $data['national_code'];
+            // if (isset($data['identification_code'])) $insurance->identification_code = $data['identification_code'];
 
             $insurance->save();
 
@@ -145,7 +147,7 @@ class InsuranceController extends Controller
             }
             
             return response()->json([
-                'insurance' => $insurance
+                'insurance' => $insurance,
             ]);
         } catch (\Throwable $e) {
             Log::error($e);
@@ -171,13 +173,15 @@ class InsuranceController extends Controller
         return response()->json(null, 204);
     }
 
-    private function scheduleInsuranceReminderSMS($template, $days) {
-        ScheduledSms::create([
-            'user_id' => auth()->id(),
-            'phone_number' => auth()->phone_number,
+    private function scheduleInsuranceReminderSMS($template, $days, $insurance_id) {
+        $user = auth()->user();
+        ScheduledSMS::create([
+            'user_id' => $user->id,
+            'phone_number' => $user->phone_number,
             'template' => $template,
-            'token' => auth()->first_name,
+            'token' => $user->first_name,
             'send_at' => now()->addDays($days),
+            'insurance_id' => $insurance_id
         ]);
     }
 }
