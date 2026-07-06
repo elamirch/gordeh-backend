@@ -10,11 +10,12 @@ return new class extends Migration
     {
         Schema::create('insurance', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->string('national_code', 20);
+            $table->string('national_code', 10);
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
             $table->string('insurance_type');
-            $table->enum('status', ['created', 'checked'])->default('created');
+            $table->string('identification_code', 10);
+            $table->enum('status', ['created', 'in_progress', 'completed'])->default('created');
             $table->unsignedBigInteger('user_id')->nullable();
             $table->timestamps();
 

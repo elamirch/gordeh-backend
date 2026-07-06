@@ -68,7 +68,7 @@ class User extends Authenticatable implements JWTSubject
 
     public function labTests()
     {
-        return $this->hasMany(Test::class, 'user_id');
+        return $this->hasMany(LabTest::class, 'user_id');
     }
 
     public function storedFiles()

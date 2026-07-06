@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Insurance;
+use App\Models\User;
+use App\Models\ScheduledSms;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use App\Services\SendSMS;
 
 class InsuranceController extends Controller
 {
@@ -67,6 +70,11 @@ class InsuranceController extends Controller
 
             $insurance = Insurance::create($data);
 
+            //Creating reminders
+            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-7d', 7);
+            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-14d', 14);
+            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-25d', 25);
+
             return response()->json($insurance, 201);
         } catch (\Throwable $e) {
             Log::error($e);
@@ -79,7 +87,7 @@ class InsuranceController extends Controller
      */
     public function show($id)
     {
-        $insurance = Insurance::with('creator')->find($id);
+        $insurance = Insurance::with('creator')->findOrFail($id);
         if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
             abort(403, 'Unauthorized');
         }
@@ -90,24 +98,22 @@ class InsuranceController extends Controller
     }
 
     /**
-     * Update insurance (currently only status is updated in original service)
+     * Update insurance
      */
     public function update(Request $request, $id)
     {
         $data = $request->validate([
-            'status' => ['nullable', Rule::in(['created','checked'])],
+            'status' => ['nullable', Rule::in(['created','in_progress', 'completed'])],
             'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
             'insurance_type' => 'nullable|string',
             'national_code' => 'nullable|string|size:10',
+            'identification_code' => 'nullable|string|size:10',
         ]);
 
-        $insurance = Insurance::find($id);
+        $insurance = Insurance::findOrFail($id);
         if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
             abort(403, 'Unauthorized');
-        }
-        if (! $insurance) {
-            return response()->json(['message' => 'Not found'], 404);
         }
 
         try {
@@ -116,10 +122,31 @@ class InsuranceController extends Controller
             if (isset($data['last_name'])) $insurance->last_name = $data['last_name'];
             if (isset($data['insurance_type'])) $insurance->insurance_type = $data['insurance_type'];
             if (isset($data['national_code'])) $insurance->national_code = $data['national_code'];
+            if (isset($data['identification_code'])) $insurance->identification_code = $data['identification_code'];
 
             $insurance->save();
 
-            return response()->json($insurance);
+            if (isset($data['status']) && isset($data['identification_code'])) {
+                if($data['status'] == 'completed') {
+                    $user = User::findOrFail($insurance->user_id);
+
+                    $userFirstName = $user['first_name'] ?? "کاربر";
+                    $sendSMS = new SendSMS;
+                    $SMSResponse = $sendSMS->insurance_code(
+                            $user['phone_number'],
+                            $data['identification_code'],
+                            $userFirstName);
+
+                    return response()->json([
+                        'insurance' => $insurance,
+                        'sms-response' => $SMSResponse
+                    ]);
+                }
+            }
+            
+            return response()->json([
+                'insurance' => $insurance
+            ]);
         } catch (\Throwable $e) {
             Log::error($e);
             return response()->json(['message' => 'Internal server error'], 500);
@@ -142,5 +169,15 @@ class InsuranceController extends Controller
         $insurance->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function scheduleInsuranceReminderSMS($template, $days) {
+        ScheduledSms::create([
+            'user_id' => auth()->id(),
+            'phone_number' => auth()->phone_number,
+            'template' => $template,
+            'token' => auth()->first_name,
+            'send_at' => now()->addDays($days),
+        ]);
     }
 }

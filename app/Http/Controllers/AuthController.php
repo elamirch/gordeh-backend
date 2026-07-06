@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Carbon\Carbon;
-use App\Services\Curl;
+use App\Services\SendSMS;
 
 class AuthController extends Controller
 {
@@ -21,8 +21,6 @@ class AuthController extends Controller
             'phone_number' => 'required|regex:/^09\d{9}$/',
         ]);
 
-        $curl = new Curl;
-        $SMS_API_URL = env("SMS_API_URL");
         $otp_code = env('APP_DEBUG') ? 11111 : rand(10000, 99999);
 
         $user = User::where('phone_number', $validated['phone_number'])->first();
@@ -34,13 +32,8 @@ class AuthController extends Controller
                 'message' => 'success: on debug mode, otp is 11111',
             ]);
         } else {
-            $payload = http_build_query([
-                'receptor' => $validated['phone_number'],
-                'token' => $otp_code,
-                'template' => 'otp-kcp'
-            ]);
-
-            $response = json_decode($curl->curl($SMS_API_URL, $payload));
+            $sendSMS = new SendSMS;
+            $response = $sendSMS->otp($validated['phone_number'], $otp_code);
 
             return response()->json([
                 'message' => 'success: OTP request sent',

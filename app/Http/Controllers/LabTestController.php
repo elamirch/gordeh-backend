@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
+use App\Models\ScheduledSms;
 
 class LabTestController extends Controller
 {
@@ -15,7 +16,7 @@ class LabTestController extends Controller
     {
         $data = $request->validate([
             'age' => 'required|integer',
-            'gender' => 'required|in:male,female',
+            'gender' => 'required|in:m,f',
             'urine_creatinine' => 'required|numeric',
             'urine_albumin' => 'required|numeric',
             'creatinine' => 'required|numeric',
@@ -47,6 +48,48 @@ class LabTestController extends Controller
                 'albumin_creatinine_ratio' => $gfrResult['albumin_creatinine_ratio'],
             ]);
 
+            //Schedule assessment reminder
+            if($gfrResult['gfr'] > 89) {
+                $stage = 1;
+            } elseif ($gfrResult['gfr'] > 59) {
+                $stage = 2;
+            } elseif ($gfrResult['gfr'] > 29) {
+                $stage = 3;
+            }
+            elseif ($gfrResult['gfr'] > 14) {
+                $stage = 4;
+            } else {
+                $stage = 1;
+            }
+            
+            $date = now()->addDays(365);
+
+            //7 days before date reminder
+            $this->scheduleAssessmentReminderSMS(
+                'cron-assess-reminder-7d',
+                $stage,
+                $this->gregorianToJalali($date->year + 1, $date->month, $date->day)
+            );
+
+            //Day reminder
+            $this->scheduleAssessmentReminderSMS(
+                'cron-assess-reminder',
+                $stage
+            );
+
+            //Due reminder after 30 days
+            $this->scheduleAssessmentReminderSMS(
+                'cron-assess-reminder-after',
+                $stage
+            );
+
+            //Due reminder after 14 for high risk users
+            $this->scheduleAssessmentReminderSMS(
+                'cron-assess-reminder-after-14d-onlyhigh',
+                $stage
+            );
+            
+
             return response()->json([
                 'message' => 'test saved successfully.',
                 'data' => $test,
@@ -57,7 +100,7 @@ class LabTestController extends Controller
         }
     }
 
-    // Helper: GFR generation logic ported from your JS service
+    // Helper: GFR generation logic
     private function generateGfr(object $input): array
     {
         $age = $input->age;
@@ -272,5 +315,17 @@ class LabTestController extends Controller
         $jd = $j_day_no+1;
 
         return ['jy' => $jy, 'jm' => $jm, 'jd' => $jd];
+    }
+
+    private function scheduleAssessmentReminderSMS($template, $token2 = null, $token3 = null, $days) {
+        ScheduledSms::create([
+            'user_id' => auth()->id(),
+            'phone_number' => auth()->phone_number,
+            'template' => $template,
+            'token' => auth()->first_name,
+            'token2' => $token2,
+            'token3' => $token2,
+            'send_at' => now()->addDays($days),
+        ]);
     }
 }
