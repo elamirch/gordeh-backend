@@ -8,12 +8,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use App\Models\ScheduledSMS;
+use App\Services\PaymentService;
 
 class LabTestController extends Controller
 {
     // Create a new test (equivalent to create in Nest service)
     public function store(Request $request): JsonResponse
     {
+        $paymentService = new PaymentService;
+        $lastPayment = $paymentService->isLabTestUsed(auth()->id());
+        if($lastPayment) {
+            return response()->json(['message' => 'Payment needed to proceed'], 403);
+        }
+
         $data = $request->validate([
             'age' => 'required|integer',
             'gender' => 'required|in:m,f',
@@ -156,6 +163,8 @@ class LabTestController extends Controller
                 );
             }
 
+            $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'lab-test');
+            
             return response()->json([
                 'message' => 'test saved successfully.',
                 'data' => $test,

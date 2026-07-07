@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use App\Services\SendSMS;
+use App\Services\PaymentService;
 
 class InsuranceController extends Controller
 {
@@ -57,6 +58,12 @@ class InsuranceController extends Controller
      */
     public function store(Request $request)
     {
+        $paymentService = new PaymentService;
+        $lastPayment = $paymentService->isInsuranceUsed(auth()->id());
+        if($lastPayment) {
+            return response()->json(['message' => 'Payment needed to proceed'], 403);
+        }
+        
         $data = $request->validate([
             'national_code'  => ['required','string','size:10'],
             'insurance_type' => ['required','string'],
@@ -76,6 +83,8 @@ class InsuranceController extends Controller
             $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-7d', 7, $insurance->id);
             $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-14d', 14, $insurance->id);
             $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-25d', 25, $insurance->id);
+
+            $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'insurance');
 
             return response()->json($insurance, 201);
         } catch (\Throwable $e) {
