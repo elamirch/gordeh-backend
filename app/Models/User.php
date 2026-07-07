@@ -75,4 +75,14 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasMany(StoredFile::class, 'user_id');
     }
+
+    public function dietPlans()
+    {
+        return $this->hasMany(DietPlan::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
 }

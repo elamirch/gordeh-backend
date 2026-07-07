@@ -8,6 +8,8 @@ use App\Http\Controllers\StoredFileController;
 use App\Http\Controllers\LabTestController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\AdminDashboardController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\DietPlanController;
 
 Route::post('auth/send-otp', [AuthController::class, 'sendotp']);
 Route::post('auth/authenticate', [AuthController::class, 'authenticate']);
@@ -49,4 +51,12 @@ Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
     Route::middleware('is_admin')->group(function () {
         Route::get('admin/dashboard', [AdminDashboardController::class, 'index']);
     });
+
+    // --- Payments ---
+    Route::post('/payments/request', [PaymentController::class, 'request']);
+    Route::post('/payments/verify', [PaymentController::class, 'verify']);
+    Route::post('/payments/getOwnPayments', [PaymentController::class, 'getOwnPayments']);
+
+    // --- Diet ---
+    Route::apiResource('/diet-plans', DietPlanController::class);
 });
