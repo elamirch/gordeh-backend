@@ -13,12 +13,12 @@ class Payment extends Model
         'status',
         'description',
         'ref_id',
-        'is_used_test',
+        'is_used_lab_test',
         'is_used_insurance',
     ];
 
     protected $casts = [
-        'is_used_test' => 'boolean',
+        'is_used_lab_test' => 'boolean',
         'is_used_insurance' => 'boolean',
     ];
 

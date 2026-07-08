@@ -138,25 +138,13 @@ class PaymentService
     }
 
     /**
-     * Find latest unused successful payment for test
+     * Find latest unused successful payment
      */
-    public function isLabTestUsed(int $userId)
+    public function lastPayment(int $userId, string $type)
     {
         return Payment::where('user_id', $userId)
             ->where('status', 'success')
-            ->where('is_used_lab_test', false)
-            ->latest('created_at')
-            ->first();
-    }
-
-    /**
-     * Find latest unused successful payment for insurance
-     */
-    public function isInsuranceUsed(int $userId)
-    {
-        return Payment::where('user_id', $userId)
-            ->where('status', 'success')
-            ->where('is_used_insurance', false)
+            ->where($type, false)
             ->latest('created_at')
             ->first();
     }
@@ -175,7 +163,7 @@ class PaymentService
         }
 
         if ($type === 'lab-test') {
-            $payment->is_used_test = true;
+            $payment->is_used_lab_test = true;
         }
 
         if ($type === 'insurance') {

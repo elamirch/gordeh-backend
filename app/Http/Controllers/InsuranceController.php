@@ -59,8 +59,9 @@ class InsuranceController extends Controller
     public function store(Request $request)
     {
         $paymentService = new PaymentService;
-        $lastPayment = $paymentService->isInsuranceUsed(auth()->id());
-        if($lastPayment) {
+        $lastPayment = $paymentService->lastPayment(auth()->id(), 'is_used_insurance');
+        
+        if(!$lastPayment) {
             return response()->json(['message' => 'Payment needed to proceed'], 403);
         }
         

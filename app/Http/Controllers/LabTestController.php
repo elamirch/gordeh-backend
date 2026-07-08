@@ -16,8 +16,8 @@ class LabTestController extends Controller
     public function store(Request $request): JsonResponse
     {
         $paymentService = new PaymentService;
-        $lastPayment = $paymentService->isLabTestUsed(auth()->id());
-        if($lastPayment) {
+        $lastPayment = $paymentService->lastPayment(auth()->id(), 'is_used_lab_test');
+        if(!$lastPayment) {
             return response()->json(['message' => 'Payment needed to proceed'], 403);
         }
 
