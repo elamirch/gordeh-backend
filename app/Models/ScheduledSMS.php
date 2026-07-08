@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class ScheduledSms extends Model
+class ScheduledSMS extends Model
 {
     protected $fillable = [
         'user_id',
