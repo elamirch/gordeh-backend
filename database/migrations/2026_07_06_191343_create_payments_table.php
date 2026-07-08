@@ -15,7 +15,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->unsignedBigInteger('amount');
-            $table->string('authority')->unique();
+            $table->string('authority', 250)->unique();
             $table->unsignedBigInteger('ref_id')
                 ->nullable();
             $table->enum('status', [
@@ -23,7 +23,7 @@ return new class extends Migration
                 'success',
                 'failed',
             ])->default('pending');
-            $table->string('description')->nullable();
+            $table->string('description', 250)->nullable();
             $table->boolean('is_used_lab_test')->default(false);
             $table->boolean('is_used_insurance')->default(false);
             $table->timestamps();

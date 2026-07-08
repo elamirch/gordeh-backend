@@ -29,12 +29,12 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
 
-            $table->string('phone_number');
-            $table->string('template');
+            $table->string('phone_number', 11);
+            $table->string('template', 250);
 
-            $table->string('token')->nullable();
-            $table->string('token2')->nullable();
-            $table->string('token3')->nullable();
+            $table->string('token', 50)->nullable();
+            $table->string('token2', 50)->nullable();
+            $table->string('token3', 50)->nullable();
 
             $table->timestamp('send_at');
 

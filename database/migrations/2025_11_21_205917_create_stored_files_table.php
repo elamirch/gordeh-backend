@@ -11,10 +11,10 @@ return new class extends Migration
         Schema::create('stored_files', function (Blueprint $table) {
             $table->id();
 
-            $table->string('url')->nullable();
-            $table->string('fileName')->nullable();
-            $table->string('originalFileName')->nullable();
-            $table->string('mainImageUrl')->nullable();
+            $table->string('url', 250)->nullable();
+            $table->string('fileName', 250)->nullable();
+            $table->string('originalFileName', 250)->nullable();
+            $table->string('mainImageUrl', 250)->nullable();
             $table->foreignId('user_id')
                 ->nullable()
                 ->constrained('users')

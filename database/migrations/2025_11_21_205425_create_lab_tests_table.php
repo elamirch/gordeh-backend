@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('lab_tests', function (Blueprint $table) {
             $table->id();
-            $table->string('gender'); // 'm' or 'f'
+            $table->string('gender', 1); // 'm' or 'f'
             $table->integer('age');
             $table->float('gfr');
             $table->float('uacr')->nullable();
