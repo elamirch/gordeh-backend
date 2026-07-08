@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
             $table->string('phone_number', 11)->unique();
-            $table->string('email')->unique()->nullable();
+            $table->string('email', 60)->unique()->nullable();
             $table->integer('height')->nullable();
             $table->integer('weight')->nullable();
             $table->integer('ideal_weight')->nullable();
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->enum('gender', ['m', 'f'])->nullable();
             $table->string('blood_type')->nullable();
             $table->integer('age')->nullable();
-            $table->string('profile_img_url')->unique()->nullable();
+            $table->string('profile_img_url', 250)->unique()->nullable();
             $table->integer('otp_code')->nullable();
             $table->dateTime('otp_code_expiration')->nullable();
             $table->timestamp('last_logout')->nullable();
