@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ScheduledSMS extends Model
 {
+    protected $table = 'scheduled_sms';
+    
     protected $fillable = [
         'user_id',
         'phone_number',
