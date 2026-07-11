@@ -119,7 +119,7 @@ class InsuranceController extends Controller
             'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
             'insurance_type' => 'nullable|string',
-            'national_code' => 'nullable|string|size:10',
+            'national_code' => 'nullable|string|size',
             'identification_code' => 'nullable|string|size:10',
         ]);
 
