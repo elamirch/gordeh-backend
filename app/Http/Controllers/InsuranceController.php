@@ -155,7 +155,7 @@ class InsuranceController extends Controller
                     ]);
                 }
             }
-            
+          
             return response()->json([
                 'insurance' => $insurance,
             ]);

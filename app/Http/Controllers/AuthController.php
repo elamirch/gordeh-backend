@@ -21,7 +21,7 @@ class AuthController extends Controller
             'phone_number' => 'required|regex:/^09\d{9}$/',
         ]);
 
-        $otp_code = env('APP_DEBUG') ? 11111 : rand(10000, 99999);
+        $otp_code = false ? 11111 : rand(10000, 99999);
 
         $user = User::firstOrCreate(
             ['phone_number' => $validated['phone_number']],
@@ -30,7 +30,7 @@ class AuthController extends Controller
         $user->otp_code = $otp_code;
         $user->save();
 
-        if(env('APP_DEBUG')) {
+        if(false) {
             return response()->json([
                 'message' => 'success: on debug mode, otp is 11111',
             ]);
@@ -116,7 +116,7 @@ class AuthController extends Controller
 
         $user = User::where('phone_number', $validated['phone_number'])->first();
 
-        $otp_code = env('APP_DEBUG') ? 11111 : $user->otp_code;
+        $otp_code = false ? 11111 : $user->otp_code;
 
         if ($user) {
             if (!isset($validated['otp_code']) ||
