@@ -70,7 +70,7 @@ class InsuranceController extends Controller
             'insurance_type' => ['required','string'],
             'first_name'     => ['nullable','string'],
             'last_name'      => ['nullable','string'],
-            'identification_code' => 'nullable|string|size:10',
+            'identification_code' => 'nullable|string',
             'status' => ['nullable', Rule::in(['created','in_progress', 'completed'])],
         ]);
 
@@ -119,8 +119,8 @@ class InsuranceController extends Controller
             'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
             'insurance_type' => 'nullable|string',
-            'national_code' => 'nullable|string|size',
-            'identification_code' => 'nullable|string|size:10',
+            'national_code' => 'nullable|string|size:10',
+            'identification_code' => 'nullable|string',
         ]);
 
         $insurance = Insurance::findOrFail($id);
