@@ -30,13 +30,10 @@ class PaymentService
         $description = 'پرداخت جهت انجام تست کلیه';
         $callback = env('ZARINPAL_CALLBACK_URL');
 
-        if(env('APP_DEBUG')) {
+
             $API_URL = env('ZARINPAL_API_URL');
             $MERCHANT_ID = env('ZARINPAL_MERCHANT_ID');
-        } else {
-            $API_URL = env('ZARINPAL_TEST_API_URL');
-            $MERCHANT_ID = env('ZARINPAL_TEST_MERCHANT_ID');
-        }
+     
         
         $response = Http::post(
             $API_URL . 'request.json',
@@ -89,13 +86,10 @@ class PaymentService
             throw new Exception('Payment already processed.');
         }
 
-        if(env('APP_DEBUG')) {
+
             $API_URL = env('ZARINPAL_API_URL');
             $MERCHANT_ID = env('ZARINPAL_MERCHANT_ID');
-        } else {
-            $API_URL = env('ZARINPAL_TEST_API_URL');
-            $MERCHANT_ID = env('ZARINPAL_TEST_MERCHANT_ID');
-        }
+     
 
         $response = Http::post(
             $API_URL . 'verify.json',
