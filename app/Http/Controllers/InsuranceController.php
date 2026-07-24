@@ -119,8 +119,8 @@ class InsuranceController extends Controller
             'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
             'insurance_type' => 'nullable|string',
-            'national_code' => 'nullable|string|size',
-            'identification_code' => 'nullable|string|size:10',
+            'national_code' => 'nullable|string|size:10',
+            'identification_code' => 'nullable|string',
         ]);
 
         $insurance = Insurance::findOrFail($id);
@@ -130,11 +130,11 @@ class InsuranceController extends Controller
 
         try {
             if (isset($data['status'])) $insurance->status = $data['status'];
-            // if (isset($data['first_name'])) $insurance->first_name = $data['first_name'];
-            // if (isset($data['last_name'])) $insurance->last_name = $data['last_name'];
-            // if (isset($data['insurance_type'])) $insurance->insurance_type = $data['insurance_type'];
-            // if (isset($data['national_code'])) $insurance->national_code = $data['national_code'];
-            // if (isset($data['identification_code'])) $insurance->identification_code = $data['identification_code'];
+            if (isset($data['first_name'])) $insurance->first_name = $data['first_name'];
+            if (isset($data['last_name'])) $insurance->last_name = $data['last_name'];
+            if (isset($data['insurance_type'])) $insurance->insurance_type = $data['insurance_type'];
+            if (isset($data['national_code'])) $insurance->national_code = $data['national_code'];
+            if (isset($data['identification_code'])) $insurance->identification_code = $data['identification_code'];
 
             $insurance->save();
 
