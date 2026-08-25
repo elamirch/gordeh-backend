@@ -22,5 +22,9 @@ class DatabaseSeeder extends Seeder
             'phone_number' => '09119401444',
             'role' => 'admin',
         ]);
+
+        $this->call(ConsultationTypeSeeder::class);
+        $this->call(AlertRuleSeeder::class);
+        $this->call(FaqItemSeeder::class);
     }
 }

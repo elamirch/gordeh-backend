@@ -19,6 +19,7 @@ class StoredFileController extends Controller
             'fileName'          => 'nullable|string',
             'originalFileName'  => 'nullable|string',
             'mainImageUrl'      => 'nullable|string',
+            'category'          => 'nullable|string|max:50',
         ]);
 
         if ($request->hasFile('file')) {

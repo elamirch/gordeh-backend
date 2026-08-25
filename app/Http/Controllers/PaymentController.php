@@ -9,14 +9,16 @@ class PaymentController extends Controller
 {
     public function request(Request $request, PaymentService $service)
     {
-        $request->validate([
+        $validated = $request->validate([
             'amount' => ['required', 'integer', 'min:1000'],
+            'callback_url' => ['nullable', 'url'],
         ]);
 
         return response()->json(
             $service->requestPayment(
                 auth()->user(),
-                $request->integer('amount')
+                $validated['amount'],
+                $validated['callback_url'] ?? null
             )
         );
     }

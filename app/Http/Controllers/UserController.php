@@ -41,7 +41,7 @@ class UserController extends Controller
             'otp_code_expiration' => 'nullable|date',
             'refresh_token' => 'nullable|string',
             'birth_date'    => 'nullable|date',
-            'role'          => 'nullable|string|in:user,admin',
+            'role'          => 'nullable|string|in:user,admin,provider,support_agent',
         ]);
 
         $user = User::create($data);
@@ -77,7 +77,12 @@ class UserController extends Controller
             'age'          => 'nullable|integer',
             'profile_img_url' => 'nullable|string|unique:users,profile_img_url,' . $user->id,
             'birth_date'    => 'nullable|date',
+            'role'          => 'nullable|string|in:user,admin,provider,support_agent',
         ]);
+
+        if (array_key_exists('role', $data) && auth()->user()->role !== 'admin') {
+            unset($data['role']);
+        }
 
         $user->update($data);
 

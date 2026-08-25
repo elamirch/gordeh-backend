@@ -25,10 +25,10 @@ class PaymentService
     /**
      * Create Zarinpal payment request
      */
-    public function requestPayment(User $user, int $amount)
+    public function requestPayment(User $user, int $amount, ?string $callbackUrl = null)
     {
         $description = 'پرداخت جهت انجام تست کلیه';
-        $callback = env('ZARINPAL_CALLBACK_URL');
+        $callback = $callbackUrl ?? env('ZARINPAL_CALLBACK_URL');
 
 
             $API_URL = env('ZARINPAL_API_URL');
