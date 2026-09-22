@@ -13,12 +13,12 @@ return new class extends Migration
             $table->foreignId('user_id')
                 ->constrained()
                 ->cascadeOnDelete();
-            $table->string('code')->nullable()->unique();
+            $table->string('code', 191)->nullable()->unique();
             $table->string('subject');
             $table->string('category'); // 'account' | 'payment' | 'lab-test' | 'app' | 'consultation' | 'other'
             $table->string('channel')->default('chat'); // 'chat' | 'email' | 'phone'
-            $table->string('priority')->default('normal'); // 'urgent' | 'normal'
-            $table->string('status')->default('open'); // 'open' | 'in_progress' | 'waiting_patient' | 'closed'
+            $table->string('priority', 20)->default('normal'); // 'urgent' | 'normal'
+            $table->string('status', 20)->default('open'); // 'open' | 'in_progress' | 'waiting_patient' | 'closed'
             $table->timestamp('sla_deadline')->nullable();
             $table->foreignId('agent_id')
                 ->nullable()

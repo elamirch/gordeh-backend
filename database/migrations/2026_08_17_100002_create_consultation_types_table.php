@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('consultation_types', function (Blueprint $table) {
-            $table->string('id')->primary(); // 'initial' | 'follow'
+            $table->string('id', 20)->primary(); // 'initial' | 'follow'
             $table->string('title');
             $table->text('description')->nullable();
             $table->unsignedInteger('price')->default(0);

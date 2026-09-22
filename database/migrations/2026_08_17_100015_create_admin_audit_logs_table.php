@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('actor_id')->constrained('users')->cascadeOnDelete();
             $table->string('action');
             // nullable: some actions (e.g. future non-record-scoped ones) may have no single subject
-            $table->string('subject_type')->nullable();
+            $table->string('subject_type', 191)->nullable();
             $table->unsignedBigInteger('subject_id')->nullable();
             $table->string('ip')->nullable();
             $table->timestamps();

@@ -132,6 +132,36 @@ class PaymentService
     }
 
     /**
+     * Redeem a discount code for a free "paid" credit, bypassing Zarinpal.
+     * Creates the same kind of success/unused Payment record the normal
+     * verify() flow produces, so downstream payment checks (lastPayment)
+     * pass exactly as if the user had paid.
+     *
+     * @throws ValidationException if the code doesn't match a configured discount code
+     */
+    public function redeemDiscountCode(User $user, string $code): Payment
+    {
+        $normalized = strtolower(trim($code));
+        $validCodes = array_map('strtolower', config('payments.discount_codes', []));
+
+        if ($normalized === '' || !in_array($normalized, $validCodes, true)) {
+            throw ValidationException::withMessages([
+                'code' => ['کد تخفیف نامعتبر است'],
+            ]);
+        }
+
+        return Payment::create([
+            'user_id' => $user->id,
+            'amount' => 0,
+            'authority' => 'discount-'.$normalized.'-'.(string) \Illuminate\Support\Str::uuid(),
+            'status' => 'success',
+            'description' => 'کد تخفیف رایگان‌کننده',
+            'is_used_lab_test' => false,
+            'is_used_insurance' => false,
+        ]);
+    }
+
+    /**
      * Find latest unused successful payment
      */
     public function lastPayment(int $userId, string $type)

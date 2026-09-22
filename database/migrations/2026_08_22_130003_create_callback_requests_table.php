@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('phone');
             $table->string('slot'); // 'morning' | 'noon' | 'evening' (admin API exposes this as `window`)
             $table->string('topic')->nullable();
-            $table->string('status')->default('now'); // 'now' | 'wait' | 'miss' | 'done'
+            $table->string('status', 20)->default('now'); // 'now' | 'wait' | 'miss' | 'done'
             $table->timestamps();
 
             $table->index('status');

@@ -118,6 +118,7 @@ Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
     Route::post('/payments/request', [PaymentController::class, 'request']);
     Route::post('/payments/verify', [PaymentController::class, 'verify']);
     Route::get('/payments/getOwnPayments', [PaymentController::class, 'getOwnPayments']);
+    Route::post('/payments/redeem-discount', [PaymentController::class, 'redeemDiscount']);
 
     // --- Diet ---
     Route::apiResource('/diet-plans', DietPlanController::class);

@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('question');
             $table->text('answer');
             $table->string('category')->nullable();
-            $table->string('status')->default('published'); // 'published' | 'draft'
+            $table->string('status', 20)->default('published'); // 'published' | 'draft'
             // Named to avoid the reserved SQL keyword `order`; exposed to the admin API as `order`.
             $table->unsignedInteger('sort_order')->default(0);
             $table->unsignedInteger('views')->nullable();

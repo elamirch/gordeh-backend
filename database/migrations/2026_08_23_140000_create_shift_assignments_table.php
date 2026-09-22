@@ -14,7 +14,7 @@ return new class extends Migration
                 ->constrained('users')
                 ->cascadeOnDelete();
             $table->unsignedTinyInteger('weekday'); // Carbon::dayOfWeek (0=Sunday..6=Saturday), matches ProviderWeeklyHours.d
-            $table->string('window'); // 'morning' | 'noon' | 'evening'
+            $table->string('window', 20); // 'morning' | 'noon' | 'evening'
             $table->timestamps();
 
             $table->unique(['agent_id', 'weekday', 'window']);
