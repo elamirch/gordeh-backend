@@ -72,4 +72,51 @@ class SendSMS {
 
         return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
     }
+
+    public function supportNewTicket($phoneNumber, $userFirstName, $ticketId) {
+
+        $payload = http_build_query([
+            'receptor' => $phoneNumber,
+            'token' => $userFirstName,
+            'token2' => $ticketId,
+            'template' => 'support-new-ticket'
+        ]);
+
+        return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
+    }
+
+    public function supportCallbackRequest($phoneNumber, $userFirstName) {
+
+        $payload = http_build_query([
+            'receptor' => $phoneNumber,
+            'token' => $userFirstName,
+            'template' => 'support-callback-request'
+        ]);
+
+        return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
+    }
+
+    public function supportReply($phoneNumber, $userFirstName, $ticketId) {
+
+        $payload = http_build_query([
+            'receptor' => $phoneNumber,
+            'token' => $userFirstName,
+            'token2' => $ticketId,
+            'template' => 'support-reply'
+        ]);
+
+        return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
+    }
+
+    public function supportTicketClosed($phoneNumber, $userFirstName, $ticketId) {
+
+        $payload = http_build_query([
+            'receptor' => $phoneNumber,
+            'token' => $userFirstName,
+            'token2' => $ticketId,
+            'template' => 'support-ticket-closed'
+        ]);
+
+        return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
+    }
 }

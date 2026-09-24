@@ -4,19 +4,22 @@ namespace App\Http\Controllers;
 
 use App\Services\PaymentService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PaymentController extends Controller
 {
     public function request(Request $request, PaymentService $service)
     {
-        $request->validate([
+        $validated = $request->validate([
             'amount' => ['required', 'integer', 'min:1000'],
+            'callback_url' => ['nullable', 'url'],
         ]);
 
         return response()->json(
             $service->requestPayment(
                 auth()->user(),
-                $request->integer('amount')
+                $validated['amount'],
+                $validated['callback_url'] ?? null
             )
         );
     }
@@ -46,5 +49,23 @@ class PaymentController extends Controller
                 $validated['limit']
             )
         );
+    }
+
+    public function redeemDiscount(Request $request, PaymentService $service)
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string'],
+        ]);
+
+        try {
+            $payment = $service->redeemDiscountCode(auth()->user(), $validated['code']);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => 'کد تخفیف نامعتبر است'], 422);
+        }
+
+        return response()->json([
+            'message' => 'Discount code redeemed successfully',
+            'payment' => $payment,
+        ]);
     }
 }

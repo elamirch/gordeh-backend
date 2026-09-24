@@ -25,16 +25,15 @@ class PaymentService
     /**
      * Create Zarinpal payment request
      */
-    public function requestPayment(User $user, int $amount)
+    public function requestPayment(User $user, int $amount, ?string $callbackUrl = null)
     {
         $description = 'پرداخت جهت انجام تست کلیه';
-        $callback = env('ZARINPAL_CALLBACK_URL');
+        $callback = $callbackUrl ?? env('ZARINPAL_CALLBACK_URL');
 
-      
+
             $API_URL = env('ZARINPAL_API_URL');
             $MERCHANT_ID = env('ZARINPAL_MERCHANT_ID');
      
-    
         
         $response = Http::post(
             $API_URL . 'request.json',
@@ -87,13 +86,10 @@ class PaymentService
             throw new Exception('Payment already processed.');
         }
 
-        if(env('APP_DEBUG')) {
+
             $API_URL = env('ZARINPAL_API_URL');
             $MERCHANT_ID = env('ZARINPAL_MERCHANT_ID');
-        } else {
-            $API_URL = env('ZARINPAL_TEST_API_URL');
-            $MERCHANT_ID = env('ZARINPAL_TEST_MERCHANT_ID');
-        }
+     
 
         $response = Http::post(
             $API_URL . 'verify.json',
@@ -133,6 +129,36 @@ class PaymentService
             'status' => 'failed',
             'error_code' => $data['code'],
         ];
+    }
+
+    /**
+     * Redeem a discount code for a free "paid" credit, bypassing Zarinpal.
+     * Creates the same kind of success/unused Payment record the normal
+     * verify() flow produces, so downstream payment checks (lastPayment)
+     * pass exactly as if the user had paid.
+     *
+     * @throws ValidationException if the code doesn't match a configured discount code
+     */
+    public function redeemDiscountCode(User $user, string $code): Payment
+    {
+        $normalized = strtolower(trim($code));
+        $validCodes = array_map('strtolower', config('payments.discount_codes', []));
+
+        if ($normalized === '' || !in_array($normalized, $validCodes, true)) {
+            throw ValidationException::withMessages([
+                'code' => ['کد تخفیف نامعتبر است'],
+            ]);
+        }
+
+        return Payment::create([
+            'user_id' => $user->id,
+            'amount' => 0,
+            'authority' => 'discount-'.$normalized.'-'.(string) \Illuminate\Support\Str::uuid(),
+            'status' => 'success',
+            'description' => 'کد تخفیف رایگان‌کننده',
+            'is_used_lab_test' => false,
+            'is_used_insurance' => false,
+        ]);
     }
 
     /**

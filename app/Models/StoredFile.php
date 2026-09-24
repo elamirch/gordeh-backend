@@ -17,6 +17,7 @@ class StoredFile extends Model
         'originalFileName',
         'mainImageUrl',
         'user_id',
+        'category',
     ];
 
     protected $casts = [

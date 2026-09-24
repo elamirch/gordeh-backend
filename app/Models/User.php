@@ -32,6 +32,7 @@ class User extends Authenticatable implements JWTSubject
         'refresh_token',
         'birth_date',
         'role',
+        'support_state',
     ];
 
     protected $casts = [
@@ -76,6 +77,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(StoredFile::class, 'user_id');
     }
 
+    public function labTestFiles()
+    {
+        return $this->hasMany(LabTestFile::class, 'user_id');
+    }
+
     public function dietPlans()
     {
         return $this->hasMany(DietPlan::class);
@@ -84,5 +90,65 @@ class User extends Authenticatable implements JWTSubject
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function patientProfile()
+    {
+        return $this->hasOne(PatientProfile::class);
+    }
+
+    public function patientAssessments()
+    {
+        return $this->hasMany(PatientAssessment::class);
+    }
+
+    public function providerProfile()
+    {
+        return $this->hasOne(ProviderProfile::class);
+    }
+
+    public function consultationBookings()
+    {
+        return $this->hasMany(ConsultationBooking::class);
+    }
+
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    public function providerAppointments()
+    {
+        return $this->hasMany(Appointment::class, 'provider_id');
+    }
+
+    public function tickets()
+    {
+        return $this->hasMany(Ticket::class);
+    }
+
+    public function callbackRequests()
+    {
+        return $this->hasMany(CallbackRequest::class);
+    }
+
+    public function chatSessions()
+    {
+        return $this->hasMany(ChatSession::class);
+    }
+
+    public function assignedTickets()
+    {
+        return $this->hasMany(Ticket::class, 'agent_id');
+    }
+
+    public function shiftAssignments()
+    {
+        return $this->hasMany(ShiftAssignment::class, 'agent_id');
+    }
+
+    public function isSupportStaff(): bool
+    {
+        return in_array($this->role, ['admin', 'support_agent'], true);
     }
 }
