@@ -7,8 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
-use App\Models\ScheduledSMS;
+use App\Services\Jalali;
 use App\Services\PaymentService;
+use App\Services\ReminderScheduler;
 
 class LabTestController extends Controller
 {
@@ -55,113 +56,8 @@ class LabTestController extends Controller
                 'albumin_creatinine_ratio' => $gfrResult['albumin_creatinine_ratio'],
             ]);
 
-            //Schedule assessment reminder
-            if($gfrResult['gfr'] > 89) {
-                $stage = 1;
-                $dateForAssess7d = now()->addDays(358);
-                $dateForAssessDue = now()->addDays(365);
-                $dateForAssessDue30d = now()->addDays(395);
-
-                $jalaliDate = $this->gregorianToJalali(
-                    $dateForAssess7d->year,
-                    $dateForAssess7d->month,
-                    $dateForAssess7d->day
-                );
-
-                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
-            } elseif ($gfrResult['gfr'] > 59) {
-                $stage = 2;
-                $dateForAssess7d = now()->addDays(175);
-                $dateForAssessDue = now()->addDays(182);
-                $dateForAssessDue30d = now()->addDays(212);
-
-                $jalaliDate = $this->gregorianToJalali(
-                    $dateForAssess7d->year,
-                    $dateForAssess7d->month,
-                    $dateForAssess7d->day
-                );
-
-                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
-            } elseif ($gfrResult['gfr'] > 29) {
-                $stage = 3;
-                $dateForAssess7d = now()->addDays(113);
-                $dateForAssessDue = now()->addDays(120);
-                $dateForAssessDue14d = now()->addDays(134);
-
-                $jalaliDate = $this->gregorianToJalali(
-                    $dateForAssess7d->year,
-                    $dateForAssess7d->month,
-                    $dateForAssess7d->day
-                );
-
-                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
-            } elseif ($gfrResult['gfr'] > 14) {
-                $stage = 4;
-                $dateForAssess7d = now()->addDays(53);
-                $dateForAssessDue = now()->addDays(60);
-                $dateForAssessDue14d = now()->addDays(74);
-
-                $jalaliDate = $this->gregorianToJalali(
-                    $dateForAssess7d->year,
-                    $dateForAssess7d->month,
-                    $dateForAssess7d->day
-                );
-
-                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
-            } else {
-                $stage = 5;
-                $dateForAssess7d = now()->addDays(23);
-                $dateForAssessDue = now()->addDays(30);
-                $dateForAssessDue14d = now()->addDays(44);
-                
-                $jalaliDate = $this->gregorianToJalali(
-                    $dateForAssess7d->year,
-                    $dateForAssess7d->month,
-                    $dateForAssess7d->day
-                );
-
-                $jalaliDateDecoded = $jalaliDate['jy'] . "/" . $jalaliDate['jm'] . "/" . $jalaliDate['jd'];
-            }
-
-            //7 days before date reminder
-            $dateForAssess7d = now()->addDays(358);
-            $this->scheduleAssessmentReminderSMS(
-                template: 'cron-assess-reminder-7d',
-                token2: $stage,
-                token3: $jalaliDateDecoded,
-                days: $dateForAssess7d,
-                labTestId: $test->id
-            );
-
-            //Day reminder
-            $this->scheduleAssessmentReminderSMS(
-                template: 'cron-assess-reminder',
-                token2: $stage,
-                token3: null,
-                days: $dateForAssessDue,
-                labTestId: $test->id
-            );
-
-
-            if($stage < 3) {
-                //Due reminder after 30 days
-                $this->scheduleAssessmentReminderSMS(
-                    template: 'cron-assess-reminder-after',
-                    token2: $stage,
-                    token3: null,
-                    days: $dateForAssessDue30d,
-                    labTestId: $test->id
-                );
-            } else {
-                //Due reminder after 14 for high risk users
-                $this->scheduleAssessmentReminderSMS(
-                    template: 'cron-assess-reminder-after-14d-onlyhigh',
-                    token2: $stage,
-                    token3: null,
-                    days: $dateForAssessDue14d,
-                    labTestId: $test->id
-                );
-            }
+            //Schedule assessment reminders
+            (new ReminderScheduler)->scheduleAssessmentReminders($user, $test);
 
             $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'lab-test');
             
@@ -314,7 +210,7 @@ class LabTestController extends Controller
 
         $mapped = $result->map(function ($row) {
             $date = new \DateTime($row->month);
-            $j = $this->gregorianToJalali(
+            $j = Jalali::fromGregorian(
                 (int) $date->format('Y'),
                 (int) $date->format('n'),
                 (int) $date->format('j')
@@ -341,7 +237,7 @@ class LabTestController extends Controller
 
         $mapped = $result->map(function ($row) {
             $date = new \DateTime($row->month);
-            $j = $this->gregorianToJalali(
+            $j = Jalali::fromGregorian(
                 (int) $date->format('Y'),
                 (int) $date->format('n'),
                 (int) $date->format('j')
@@ -354,55 +250,5 @@ class LabTestController extends Controller
         });
 
         return response()->json($mapped->values());
-    }
-
-    /**
-     * Convert Gregorian date to Jalali (returns array with keys jy, jm, jd)
-     * Implementation adapted from common algorithms — lightweight, no external package.
-     */
-    private function gregorianToJalali(int $g_y, int $g_m, int $g_d): array
-    {
-        $g_days_in_month = [31,28,31,30,31,30,31,31,30,31,30,31];
-        $j_days_in_month = [31,31,31,31,31,31,30,30,30,30,30,29];
-
-        $gy = $g_y-1600;
-        $gm = $g_m-1;
-        $gd = $g_d-1;
-
-        $g_day_no = 365*$gy + intval(($gy+3)/4) - intval(($gy+99)/100) + intval(($gy+399)/400);
-        for ($i=0; $i < $gm; ++$i) $g_day_no += $g_days_in_month[$i];
-        if ($gm>1 && (($gy%4==0 && $gy%100!=0) || ($gy%400==0))) $g_day_no++;
-        $g_day_no += $gd;
-
-        $j_day_no = $g_day_no - 79;
-        $j_np = intval($j_day_no / 12053);
-        $j_day_no = $j_day_no % 12053;
-        $jy = 979 + 33*$j_np + 4*intval($j_day_no/1461);
-        $j_day_no %= 1461;
-        if ($j_day_no >= 366) {
-            $jy += intval(($j_day_no-1)/365);
-            $j_day_no = ($j_day_no-1) % 365;
-        }
-        for ($i = 0; $i < 11 && $j_day_no >= $j_days_in_month[$i]; ++$i) {
-            $j_day_no -= $j_days_in_month[$i];
-        }
-        $jm = $i+1;
-        $jd = $j_day_no+1;
-
-        return ['jy' => $jy, 'jm' => $jm, 'jd' => $jd];
-    }
-
-    private function scheduleAssessmentReminderSMS($template, $token2, $token3, $days, $labTestId) {
-        $user = auth()->user();
-        ScheduledSMS::create([
-            'user_id' => $user->id,
-            'phone_number' => $user->phone_number,
-            'template' => $template,
-            'token' => $user->first_name,
-            'token2' => $token2,
-            'token3' => $token3,
-            'send_at' => now()->addDays($days),
-            'lab_test_id' => $labTestId
-        ]);
     }
 }

@@ -32,11 +32,14 @@ class CheckScheduledSms extends Command
             ->chunkById(100, function ($messages) {
                 foreach ($messages as $sms) {
 
-                    $sms->update([
-                        'status' => 'processing'
-                    ]);
+                    // Claim the row atomically so an overlapping run can't dispatch it twice.
+                    $claimed = ScheduledSMS::where('id', $sms->id)
+                        ->where('status', 'pending')
+                        ->update(['status' => 'processing']);
 
-                    SendSmsJob::dispatch($sms->id);
+                    if ($claimed) {
+                        SendSmsJob::dispatch($sms->id);
+                    }
                 }
 
             });
