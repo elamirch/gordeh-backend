@@ -181,9 +181,9 @@ class ScheduledSmsTest extends TestCase
         $sms = ScheduledSMS::create(['user_id' => $user->id, 'phone_number' => $user->phone_number, 'template' => 'cron-insurance-reminder-7d', 'token' => null, 'send_at' => now(), 'status' => 'processing']);
 
         $this->mock(SendSMS::class)
-            ->shouldReceive('insuranceReminder')
+            ->shouldReceive('reminder')
             ->once()
-            ->with($user->phone_number, 'کاربر', 'cron-insurance-reminder-7d')
+            ->with($user->phone_number, 'cron-insurance-reminder-7d', 'کاربر', null, null)
             ->andReturn(json_decode('{"return":{"status":200,"message":"ok"}}'));
 
         SendSmsJob::dispatchSync($sms->id);
@@ -199,7 +199,7 @@ class ScheduledSmsTest extends TestCase
         $sms = ScheduledSMS::create(['user_id' => $user->id, 'phone_number' => $user->phone_number, 'template' => 'cron-assess-reminder', 'token' => 'Amir', 'token2' => '2', 'send_at' => now(), 'status' => 'processing']);
 
         $this->mock(SendSMS::class)
-            ->shouldReceive('assessmentReminder')
+            ->shouldReceive('reminder')
             ->once()
             ->andReturn(json_decode('{"return":{"status":424,"message":"template not found"}}'));
 
@@ -213,6 +213,81 @@ class ScheduledSmsTest extends TestCase
         $sms->refresh();
         $this->assertSame('failed', $sms->status);
         $this->assertStringContainsString('template not found', $sms->error);
+    }
+
+    public function test_a_reminder_a_few_hours_late_is_still_sent_as_is(): void
+    {
+        Queue::fake();
+        $user = $this->patient();
+        $sms = ScheduledSMS::create(['user_id' => $user->id, 'phone_number' => $user->phone_number, 'template' => 'cron-insurance-reminder-7d', 'send_at' => now()->subHours(3)]);
+
+        $this->artisan('gordeh:sms')->assertSuccessful();
+
+        Queue::assertPushed(SendSmsJob::class, fn ($job) => $job->smsId === $sms->id);
+        $this->assertSame(1, ScheduledSMS::count());
+    }
+
+    public function test_a_backlog_of_missed_reminders_becomes_one_replacement_sent_in_the_daytime(): void
+    {
+        Queue::fake();
+        $user = $this->patient();
+
+        // Stage 5 test from 50 days ago: its 7-day, due and follow-up reminders are all long past.
+        Carbon::setTestNow(now()->subDays(50));
+        $test = $this->labTestFor($user, 5);
+        Carbon::setTestNow(Carbon::parse('2026-09-24 20:30:00', 'UTC'));
+        (new ReminderScheduler)->scheduleAssessmentReminders($user, $test);
+
+        $this->artisan('gordeh:sms')->assertSuccessful();
+
+        $this->assertSame(3, ScheduledSMS::where('status', 'missed')->count());
+        $replacement = ScheduledSMS::where('template', 'cron-assess-reminder-missed')->sole();
+        $this->assertSame('pending', $replacement->status);
+        $this->assertSame('Amir', $replacement->token);
+        $this->assertSame('5', (string) $replacement->token2);
+        // Due date: created 2026-08-06 Tehran + 30 days = 2026-09-05 = 1405/6/14.
+        $this->assertSame('1405/6/14', $replacement->token3);
+        // It's midnight in Tehran, so it waits for 10:00.
+        $this->assertSame('2026-09-25 06:30:00', $replacement->send_at->utc()->toDateTimeString());
+        Queue::assertNothingPushed();
+
+        Carbon::setTestNow(Carbon::parse('2026-09-25 06:30:00', 'UTC'));
+        $this->artisan('gordeh:sms')->assertSuccessful();
+
+        Queue::assertPushed(SendSmsJob::class, 1);
+        Queue::assertPushed(SendSmsJob::class, fn ($job) => $job->smsId === $replacement->id);
+    }
+
+    public function test_only_one_replacement_is_queued_per_user_and_kind(): void
+    {
+        Queue::fake();
+        $user = $this->patient();
+        $missed = fn ($template, $daysAgo) => ScheduledSMS::create(['user_id' => $user->id, 'phone_number' => $user->phone_number, 'template' => $template, 'token' => 'Amir', 'send_at' => now()->subDays($daysAgo)]);
+
+        $missed('cron-insurance-reminder-7d', 18);
+        $missed('cron-insurance-reminder-14d', 11);
+        $this->artisan('gordeh:sms')->assertSuccessful();
+
+        $missed('cron-insurance-reminder-25d', 2);
+        $this->artisan('gordeh:sms')->assertSuccessful();
+
+        $this->assertSame(3, ScheduledSMS::where('status', 'missed')->count());
+        $replacement = ScheduledSMS::where('template', 'cron-insurance-reminder-missed')->sole();
+        $this->assertNull($replacement->token2);
+        $this->assertNull($replacement->token3);
+    }
+
+    public function test_job_replaces_a_reminder_that_sat_in_the_queue_too_long(): void
+    {
+        $user = $this->patient();
+        $sms = ScheduledSMS::create(['user_id' => $user->id, 'phone_number' => $user->phone_number, 'template' => 'cron-insurance-reminder-14d', 'token' => 'Amir', 'send_at' => now()->subDays(2), 'status' => 'processing']);
+
+        $this->mock(SendSMS::class)->shouldNotReceive('reminder');
+
+        SendSmsJob::dispatchSync($sms->id);
+
+        $this->assertSame('missed', $sms->fresh()->status);
+        $this->assertSame('pending', ScheduledSMS::where('template', 'cron-insurance-reminder-missed')->sole()->status);
     }
 
     public function test_repair_command_reschedules_reminders_that_went_out_immediately(): void

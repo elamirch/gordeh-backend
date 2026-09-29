@@ -49,7 +49,8 @@ class RepairAssessmentReminders extends Command
             }
 
             // Reminders only follow the user's most recent test; anything still pending for older
-            // tests is dropped by scheduleAssessmentReminders, and past-due slots are skipped.
+            // tests is dropped by scheduleAssessmentReminders. Slots already in the past are folded
+            // into a single replacement message by gordeh:sms instead of all going out at once.
             $removed += ScheduledSMS::where('user_id', $user->id)
                 ->where('template', 'like', 'cron-assess%')
                 ->where('status', 'pending')

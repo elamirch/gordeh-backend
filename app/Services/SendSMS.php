@@ -37,38 +37,19 @@ class SendSMS {
         return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
     }
 
-    public function insuranceReminder($phoneNumber, $userFirstName, $template) {
+    /**
+     * Sends a scheduled reminder. Only the tokens a template uses are set on the row, so empty
+     * ones are left out of the request.
+     */
+    public function reminder($phoneNumber, $template, $token, $token2 = null, $token3 = null) {
 
-        $payload = http_build_query([
+        $payload = http_build_query(array_filter([
             'receptor' => $phoneNumber,
-            'token' => $userFirstName,
+            'token' => $token,
+            'token2' => $token2,
+            'token3' => $token3,
             'template' => $template
-        ]);
-
-        return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
-    }
-
-    public function assessmentReminder7d($phoneNumber, $userFirstName, $stage, $nextAppointment) {
-
-        $payload = http_build_query([
-            'receptor' => $phoneNumber,
-            'token' => $userFirstName,
-            'token2' => $stage,
-            'token3' => $nextAppointment,
-            'template' => "cron-assess-reminder-7d"
-        ]);
-
-        return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
-    }
-
-    public function assessmentReminder($phoneNumber, $userFirstName, $stage, $template) {
-
-        $payload = http_build_query([
-            'receptor' => $phoneNumber,
-            'token' => $userFirstName,
-            'token2' => $stage,
-            'template' => $template
-        ]);
+        ], fn ($value) => $value !== null && $value !== ''));
 
         return json_decode($this->curl->curl($this->SMS_API_URL, $payload));
     }

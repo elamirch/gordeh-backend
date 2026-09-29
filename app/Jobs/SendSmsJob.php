@@ -21,7 +21,7 @@ class SendSmsJob implements ShouldQueue
         public int $smsId
     ) {}
 
-    public function handle(SendSMS $SendSMS)
+    public function handle(SendSMS $SendSMS, ReminderScheduler $scheduler)
     {
         $sms = ScheduledSMS::find($this->smsId);
 
@@ -29,16 +29,20 @@ class SendSmsJob implements ShouldQueue
             return;
         }
 
-        try {
-            $name = ReminderScheduler::nameToken($sms->token);
+        // Sat in the queue too long (worker was down): send one replacement instead of the stale text.
+        if ($scheduler->isMissed($sms)) {
+            $scheduler->replaceMissed($sms);
+            return;
+        }
 
-            if($sms->template == "cron-assess-reminder-7d") {
-                $response = $SendSMS->assessmentReminder7d($sms->phone_number, $name, $sms->token2, $sms->token3);
-            } elseif(substr($sms->template, 0, 11) == "cron-assess") {
-                $response = $SendSMS->assessmentReminder($sms->phone_number, $name, $sms->token2, $sms->template);
-            } else {
-                $response = $SendSMS->insuranceReminder($sms->phone_number, $name, $sms->template);
-            }
+        try {
+            $response = $SendSMS->reminder(
+                $sms->phone_number,
+                $sms->template,
+                ReminderScheduler::nameToken($sms->token),
+                $sms->token2,
+                $sms->token3
+            );
 
             // Kavenegar reports errors (unknown template, invalid token, no credit, ...) in the response
             // body instead of failing the request, so anything but status 200 is a failed send.
