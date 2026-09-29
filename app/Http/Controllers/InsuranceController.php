@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Insurance;
 use App\Models\User;
-use App\Models\ScheduledSMS;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use App\Services\SendSMS;
 use App\Services\PaymentService;
+use App\Services\ReminderScheduler;
 
 class InsuranceController extends Controller
 {
@@ -81,9 +81,7 @@ class InsuranceController extends Controller
             $insurance = Insurance::create($data);
 
             //Creating reminders
-            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-7d', 7, $insurance->id);
-            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-14d', 14, $insurance->id);
-            $this->scheduleInsuranceReminderSMS('cron-insurance-reminder-25d', 25, $insurance->id);
+            (new ReminderScheduler)->scheduleInsuranceReminders(auth()->user(), $insurance);
 
             $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'insurance');
 
@@ -181,17 +179,5 @@ class InsuranceController extends Controller
         $insurance->delete();
 
         return response()->json(null, 204);
-    }
-
-    private function scheduleInsuranceReminderSMS($template, $days, $insurance_id) {
-        $user = auth()->user();
-        ScheduledSMS::create([
-            'user_id' => $user->id,
-            'phone_number' => $user->phone_number,
-            'template' => $template,
-            'token' => $user->first_name,
-            'send_at' => now()->addDays($days),
-            'insurance_id' => $insurance_id
-        ]);
     }
 }

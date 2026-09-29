@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\ScheduledSMS;
 use App\Jobs\SendSmsJob;
+use App\Services\ReminderScheduler;
 
 class CheckScheduledSms extends Command
 {
@@ -25,18 +26,25 @@ class CheckScheduledSms extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(ReminderScheduler $scheduler)
     {
+        // Reminders that are far past their time become one replacement message per user first,
+        // so they don't all go out below in one burst.
+        $scheduler->replaceMissedReminders();
+
         ScheduledSMS::where('status', 'pending')
             ->where('send_at', '<=', now())
             ->chunkById(100, function ($messages) {
                 foreach ($messages as $sms) {
 
-                    $sms->update([
-                        'status' => 'processing'
-                    ]);
+                    // Claim the row atomically so an overlapping run can't dispatch it twice.
+                    $claimed = ScheduledSMS::where('id', $sms->id)
+                        ->where('status', 'pending')
+                        ->update(['status' => 'processing']);
 
-                    SendSmsJob::dispatch($sms->id);
+                    if ($claimed) {
+                        SendSmsJob::dispatch($sms->id);
+                    }
                 }
 
             });

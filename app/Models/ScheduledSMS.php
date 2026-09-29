@@ -17,6 +17,8 @@ class ScheduledSMS extends Model
         'token3',
         'send_at',
         'status',
+        'sent_at',
+        'error',
         'insurance_id',
         'lab_test_id',
     ];
