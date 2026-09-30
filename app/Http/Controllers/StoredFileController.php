@@ -3,13 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\StoredFile;
+use App\Support\PrivateFiles;
 use Illuminate\Http\Request;
 
 class StoredFileController extends Controller
 {
     public function index()
     {
-        return StoredFile::with('user')->get();
+        $query = StoredFile::query();
+
+        if (auth()->user()->role === 'admin') {
+            $query->with('user');
+        } else {
+            $query->where('user_id', auth()->id());
+        }
+
+        return $query->get();
     }
 
     public function store(Request $request)
@@ -25,7 +34,7 @@ class StoredFileController extends Controller
         if ($request->hasFile('file')) {
             $uploadedFile = $request->file('file');
             
-            $data['url'] = $uploadedFile->store('uploads', 'public');
+            $data['url'] = PrivateFiles::store($uploadedFile, 'uploads');
             $data['fileName'] = $data['fileName'] ?? $uploadedFile->hashName();
             $data['originalFileName'] = $data['originalFileName'] ?? $uploadedFile->getClientOriginalName(); // file.originalname
         }
@@ -38,18 +47,29 @@ class StoredFileController extends Controller
 
     public function show(StoredFile $storedFile)
     {
+        $this->authorizeAccess($storedFile, true);
+
         return $storedFile->load('user');
     }
 
     public function destroy(StoredFile $storedFile)
     {
-        // Optional permission logic
-        // if (auth()->id() !== $storedFile->user_id && auth()->user()->role !== 'admin') {
-        //     return response()->json(['message' => 'Forbidden'], 403);
-        // }
+        $this->authorizeAccess($storedFile, false);
 
+        PrivateFiles::delete($storedFile->url);
         $storedFile->delete();
 
         return response()->json(null, 204);
+    }
+
+    /** Owner and admins always; providers may also view (not delete) patients' files. */
+    private function authorizeAccess(StoredFile $storedFile, bool $providerMayView): void
+    {
+        $user = auth()->user();
+        $allowed = $storedFile->user_id === $user->id
+            || $user->role === 'admin'
+            || ($providerMayView && $user->role === 'provider');
+
+        abort_unless($allowed, 403, 'Forbidden');
     }
 }

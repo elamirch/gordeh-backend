@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PrivateFiles;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,6 +21,8 @@ class StoredFile extends Model
         'category',
     ];
 
+    protected $appends = ['signed_url'];
+
     protected $casts = [
         'created_at' => 'datetime',
     ];
@@ -29,6 +32,12 @@ class StoredFile extends Model
     | Relationships
     |--------------------------------------------------------------------------
     */
+
+    /** Short-lived URL to view/download the file; `url` stays the stable storage path. */
+    public function getSignedUrlAttribute(): ?string
+    {
+        return PrivateFiles::signedUrl($this->url);
+    }
 
     public function user()
     {

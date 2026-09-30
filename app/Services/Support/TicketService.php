@@ -2,6 +2,7 @@
 
 namespace App\Services\Support;
 
+use App\Support\PrivateFiles;
 use App\Events\TicketMessageSent;
 use App\Models\AuditLog;
 use App\Models\Ticket;
@@ -135,7 +136,7 @@ class TicketService
             'id' => (string) $message->id,
             'sender' => $message->author === 'agent' ? 'support' : 'user',
             'text' => $message->text,
-            'fileUrl' => $message->file_url,
+            'fileUrl' => PrivateFiles::signedUrl($message->file_url),
             'createdAt' => $message->created_at->toIso8601String(),
         ];
     }
@@ -341,7 +342,7 @@ class TicketService
             'authorId' => $message->author_id,
             'authorName' => $message->authorUser ? $this->fullName($message->authorUser) : null,
             'text' => $message->text,
-            'attachmentUrl' => $message->file_url,
+            'attachmentUrl' => PrivateFiles::signedUrl($message->file_url),
             'createdAt' => $message->created_at->toIso8601String(),
         ];
     }

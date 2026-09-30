@@ -155,6 +155,7 @@ class ResetUserData extends Command
             // Only local relative paths; skip empty values and absolute/external URLs.
             if ($path && ! Str::startsWith($path, ['http://', 'https://', '/'])) {
                 $files[] = ['public', $path];
+                $files[] = ['local', $path];
             }
         }
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Support\PrivateFiles;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Notifications\Notifiable;
@@ -35,6 +36,8 @@ class User extends Authenticatable implements JWTSubject
         'support_state',
     ];
 
+    protected $appends = ['profile_img_signed_url'];
+
     protected $casts = [
         'height'               => 'integer',
         'weight'               => 'integer',
@@ -48,6 +51,15 @@ class User extends Authenticatable implements JWTSubject
         'created_at'           => 'datetime',
         'updated_at'           => 'datetime',
     ];
+
+    /**
+     * Displayable avatar URL. `profile_img_url` remains the stable stored value (send it
+     * back unchanged on update); this one is signed and stable within the hour.
+     */
+    public function getProfileImgSignedUrlAttribute(): ?string
+    {
+        return PrivateFiles::signedUrl($this->profile_img_url, null);
+    }
 
     public function getJWTIdentifier()
     {

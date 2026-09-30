@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Support\PrivateFiles;
 use App\Models\ChatMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -33,7 +34,7 @@ class ChatMessageSent implements ShouldBroadcast
             'sessionId' => (string) $this->message->chat_session_id,
             'sender' => $this->message->sender,
             'text' => $this->message->text,
-            'fileUrl' => $this->message->file_url,
+            'fileUrl' => PrivateFiles::signedUrl($this->message->file_url),
             'createdAt' => $this->message->created_at->toIso8601String(),
         ];
     }

@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\DietPlan;
 use App\Models\User;
 use App\Support\JalaliDate;
+use App\Support\PrivateFiles;
 use Illuminate\Http\Request;
 
 class DietPlanController extends Controller
@@ -19,7 +20,7 @@ class DietPlanController extends Controller
             'note' => 'nullable|string',
         ]);
 
-        $fileUrl = $request->file('file')->store('diet-plans', 'public');
+        $fileUrl = PrivateFiles::store($request->file('file'), 'diet-plans');
 
         $plan = DietPlan::create([
             'user_id' => $patient->id,
@@ -40,7 +41,7 @@ class DietPlanController extends Controller
             'by' => trim(($provider->first_name ?? '') . ' ' . ($provider->last_name ?? '')),
             'st' => $plan->status,
             'v' => $plan->version,
-            'f' => $plan->file_url,
+            'f' => PrivateFiles::signedUrl($plan->file_url),
             'note' => $plan->note,
         ], 201);
     }

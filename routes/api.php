@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\StoredFileController;
+use App\Http\Controllers\FileController;
 use App\Http\Controllers\LabTestController;
 use App\Http\Controllers\LabTestFileController;
 use App\Http\Controllers\InsuranceController;
@@ -53,6 +54,11 @@ Route::get('lab-test-files/{labTestFile}/download', [LabTestFileController::clas
     ->name('lab-test-files.download')
     ->middleware('signed');
 
+
+// Signed, short-lived URL for viewing an uploaded file (avatars, documents, diet plans).
+Route::get('files', [FileController::class, 'serve'])
+    ->name('files.serve')
+    ->middleware('signed');
 
 Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
 

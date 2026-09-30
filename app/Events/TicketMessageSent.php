@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Support\PrivateFiles;
 use App\Models\TicketMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -57,7 +58,7 @@ class TicketMessageSent implements ShouldBroadcast
             'authorId' => $this->message->author_id,
             'authorName' => $name !== '' ? $name : null,
             'text' => $this->message->text,
-            'attachmentUrl' => $this->message->file_url,
+            'attachmentUrl' => PrivateFiles::signedUrl($this->message->file_url),
             'createdAt' => $this->message->created_at->toIso8601String(),
         ];
     }

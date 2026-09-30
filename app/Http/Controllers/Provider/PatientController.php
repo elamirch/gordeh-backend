@@ -9,7 +9,7 @@ use App\Models\PatientAssessment;
 use App\Models\StoredFile;
 use App\Models\User;
 use App\Support\JalaliDate;
-use Illuminate\Support\Facades\Storage;
+use App\Support\PrivateFiles;
 
 class PatientController extends Controller
 {
@@ -183,16 +183,17 @@ class PatientController extends Controller
                 'd' => JalaliDate::dayMonth($f->created_at),
                 'by' => 'بیمار',
                 's' => $this->fileSizeLabel($f->url),
+                'url' => $f->signed_url,
             ])->values()->all();
     }
 
     private function fileSizeLabel(?string $path): string
     {
-        if (! $path || ! Storage::disk('public')->exists($path)) {
+        $bytes = PrivateFiles::size($path);
+        if ($bytes === null) {
             return '—';
         }
 
-        $bytes = Storage::disk('public')->size($path);
         if ($bytes >= 1024 * 1024) {
             return JalaliDate::toPersianDigits(number_format($bytes / (1024 * 1024), 1)).' مگابایت';
         }
@@ -208,7 +209,7 @@ class PatientController extends Controller
             'by' => $plan->provider ? trim(($plan->provider->first_name ?? '').' '.($plan->provider->last_name ?? '')) : null,
             'st' => $plan->status,
             'v' => $plan->version,
-            'f' => $plan->file_url,
+            'f' => PrivateFiles::signedUrl($plan->file_url),
             'note' => $plan->note,
         ])->values()->all();
     }

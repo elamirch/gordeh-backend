@@ -5,7 +5,7 @@ namespace App\Http\Controllers\NutritionConsultation;
 use App\Http\Controllers\Controller;
 use App\Models\StoredFile;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use App\Support\PrivateFiles;
 
 class DocController extends Controller
 {
@@ -32,7 +32,7 @@ class DocController extends Controller
         ]);
 
         $uploadedFile = $request->file('file');
-        $url = $uploadedFile->store('uploads', 'public');
+        $url = PrivateFiles::store($uploadedFile, 'uploads');
 
         $doc = StoredFile::create([
             'url' => $url,
@@ -51,7 +51,7 @@ class DocController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        Storage::disk('public')->delete($storedFile->url);
+        PrivateFiles::delete($storedFile->url);
         $storedFile->delete();
 
         return response()->json(null, 204);

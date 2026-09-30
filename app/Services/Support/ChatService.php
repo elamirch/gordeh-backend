@@ -2,6 +2,7 @@
 
 namespace App\Services\Support;
 
+use App\Support\PrivateFiles;
 use App\Events\ChatMessageSent;
 use App\Events\ChatSessionStatusChanged;
 use App\Events\NewChatSessionStarted;
@@ -106,7 +107,7 @@ class ChatService
             'sessionId' => (string) $message->chat_session_id,
             'sender' => $message->sender,
             'text' => $message->text,
-            'fileUrl' => $message->file_url,
+            'fileUrl' => PrivateFiles::signedUrl($message->file_url),
             'createdAt' => $message->created_at->toIso8601String(),
         ];
     }
