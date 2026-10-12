@@ -8,7 +8,7 @@ use Carbon\Carbon;
 
 class ScheduleService
 {
-    public const SLOT_MINUTES = 30;
+    public const SLOT_MINUTES = 15;
 
     private const WEEKDAY_LABELS = [
         0 => 'یکشنبه',
@@ -54,9 +54,16 @@ class ScheduleService
             $bookedQuery->where('provider_id', $providerId);
         }
 
+        // An appointment occupies every slot from its start until start + duration_minutes, so
+        // appointments booked on the old 30-minute grid still block both of their 15-minute slots.
         $bookedProvidersByTime = [];
-        foreach ($bookedQuery->get(['provider_id', 'time']) as $appointment) {
-            $bookedProvidersByTime[$appointment->time][] = $appointment->provider_id;
+        foreach ($bookedQuery->get(['provider_id', 'time', 'duration_minutes']) as $appointment) {
+            $cursor = Carbon::createFromFormat('H:i', $appointment->time);
+            $end = $cursor->copy()->addMinutes($appointment->duration_minutes ?: self::SLOT_MINUTES);
+            while ($cursor->lt($end)) {
+                $bookedProvidersByTime[$cursor->format('H:i')][] = $appointment->provider_id;
+                $cursor->addMinutes(self::SLOT_MINUTES);
+            }
         }
 
         $slots = [];

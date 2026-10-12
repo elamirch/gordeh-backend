@@ -12,6 +12,7 @@ class Appointment extends Model
         'consultation_booking_id',
         'date',
         'time',
+        'duration_minutes',
         'status',
         'join_url',
         'note',
@@ -19,6 +20,7 @@ class Appointment extends Model
 
     protected $casts = [
         'date' => 'date',
+        'duration_minutes' => 'integer',
     ];
 
     public function user()

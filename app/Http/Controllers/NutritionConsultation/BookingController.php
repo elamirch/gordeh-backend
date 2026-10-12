@@ -111,6 +111,7 @@ class BookingController extends Controller
         $appointment->update([
             'date' => $data['date'],
             'time' => $data['time'],
+            'duration_minutes' => ScheduleService::SLOT_MINUTES,
             'status' => 'requested',
         ]);
 
