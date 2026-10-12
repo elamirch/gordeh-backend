@@ -108,6 +108,7 @@ Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
             Route::patch('queue/{consultationBooking}', [NutritionMonitoringController::class, 'reassignQueueItem']);
 
             Route::get('specialists', [NutritionMonitoringController::class, 'specialists']);
+            Route::post('specialists', [NutritionMonitoringController::class, 'storeSpecialist']);
 
             Route::get('alert-rules', [AlertRuleController::class, 'index']);
             Route::patch('alert-rules/{alertRule}', [AlertRuleController::class, 'update']);
