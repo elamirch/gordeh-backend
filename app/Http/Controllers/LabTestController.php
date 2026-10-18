@@ -90,9 +90,13 @@ class LabTestController extends Controller
         $phosphorous = $input->phosphorous ?? 3.93;
         $bCarbonate = $input->bCarbonate ?? 25.54;
 
-        $k = $gender === 'female' ? 0.7 : 0.9;
-        $a = $gender === 'female' ? -0.241 : -0.302;
-        $genderCoeff = $gender === 'female' ? 1.012 : 1.0;
+        // Tests are stored as 'm' / 'f' (see store()'s validation); comparing against 'female' / 'male'
+        // used to run every patient through the male equation and leave out the Tangri male term.
+        $isFemale = in_array(strtolower((string) $gender), ['f', 'female'], true);
+
+        $k = $isFemale ? 0.7 : 0.9;
+        $a = $isFemale ? -0.241 : -0.302;
+        $genderCoeff = $isFemale ? 1.012 : 1.0;
 
         $minCr = min($creatinine / $k, 1);
         $maxCr = max($creatinine / $k, 1);
@@ -114,7 +118,7 @@ class LabTestController extends Controller
         // Linear predictor (Tangri 2011 centered variables)
         $lp =
             -0.4936 * ($gfr / 5 - 7.22) +
-            0.16117 * (($gender === 'male' ? 1 : 0) - 0.56) +
+            0.16117 * (($isFemale ? 0 : 1) - 0.56) +
             0.35066 * (log(max($acr, 1e-9)) - 5.2775) +
             -0.19883 * ($age / 10 - 7.04) +
             -0.33867 * ($albumin - 3.99) +

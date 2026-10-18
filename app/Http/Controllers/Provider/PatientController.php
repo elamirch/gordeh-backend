@@ -105,7 +105,7 @@ class PatientController extends Controller
 
         foreach ($tests as $test) {
             $d = JalaliDate::dayMonth($test->created_at);
-            $creatinineRef = $test->gender === 'female' ? [0.6, 1.1] : [0.7, 1.3];
+            $creatinineRef = in_array($test->gender, ['f', 'female'], true) ? [0.6, 1.1] : [0.7, 1.3];
 
             if ($test->creatinine !== null) {
                 $results[] = $this->metric('کراتینین', $test->creatinine, 'mg/dL', $creatinineRef, $d);
