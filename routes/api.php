@@ -43,6 +43,8 @@ use App\Http\Controllers\Admin\FaqController as AdminFaqController;
 use App\Http\Controllers\Admin\AgentController as AdminAgentController;
 use App\Http\Controllers\Admin\ChatController as AdminChatController;
 use App\Http\Controllers\Admin\SupportReportController;
+use App\Http\Controllers\Admin\WebinarRegistrationController as AdminWebinarRegistrationController;
+use App\Http\Controllers\Webinar\RegistrationController as WebinarRegistrationController;
 
 Route::post('auth/send-otp', [AuthController::class, 'sendotp']);
 Route::post('auth/authenticate', [AuthController::class, 'authenticate']);
@@ -59,6 +61,10 @@ Route::get('lab-test-files/{labTestFile}/download', [LabTestFileController::clas
 Route::get('files', [FileController::class, 'serve'])
     ->name('files.serve')
     ->middleware('signed');
+
+// Public webinar sign-up (guests welcome; linked to an account when the phone matches one).
+Route::post('webinar-registrations', [WebinarRegistrationController::class, 'store'])
+    ->middleware('throttle:webinar-register');
 
 Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
 
@@ -99,6 +105,10 @@ Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
     // --- Admin Dashboard ---
     Route::middleware('is_admin')->group(function () {
         Route::get('admin/dashboard', [AdminDashboardController::class, 'index']);
+
+        Route::get('admin/webinar-registrations', [AdminWebinarRegistrationController::class, 'index']);
+        Route::post('admin/webinar-registrations', [AdminWebinarRegistrationController::class, 'store']);
+        Route::delete('admin/webinar-registrations/{webinarRegistration}', [AdminWebinarRegistrationController::class, 'destroy']);
 
         Route::prefix('admin/nutrition-monitoring')->group(function () {
             Route::get('overview', [NutritionMonitoringController::class, 'overview']);
