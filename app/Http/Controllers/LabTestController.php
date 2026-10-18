@@ -38,28 +38,34 @@ class LabTestController extends Controller
             $user = auth()->user();
             $gfrResult = $this->generateGfr((object) $data);
 
-            $test = LabTest::create([
-                'b_carbonate' => $data['bCarbonate'] ?? null,
-                'age' => $data['age'],
-                'albumin' => $data['albumin'],
-                'urine_albumin' => $data['urine_albumin'],
-                'calcium' => $data['calcium'] ?? null,
-                'gfr' => $gfrResult['gfr'],
-                'gender' => $data['gender'],
-                'risk_2_years' => $gfrResult['risk2Years'],
-                'risk_5_years' => $gfrResult['risk5Years'],
-                'phosphorous' => $data['phosphorous'] ?? null,
-                'creatinine' => $data['creatinine'],
-                'urine_creatinine' => $data['urine_creatinine'],
-                'stage' => $gfrResult['stage'],
-                'user_id' => $user ? $user->id : null,
-                'albumin_creatinine_ratio' => $gfrResult['albumin_creatinine_ratio'],
-            ]);
+            // Saving the test, its reminders and consuming the payment succeed or fail together: a
+            // reminder failure used to leave a saved test with an unused payment (re-submittable).
+            $test = DB::transaction(function () use ($data, $gfrResult, $user, $paymentService, $lastPayment) {
+                $test = LabTest::create([
+                    'b_carbonate' => $data['bCarbonate'] ?? null,
+                    'age' => $data['age'],
+                    'albumin' => $data['albumin'],
+                    'urine_albumin' => $data['urine_albumin'],
+                    'calcium' => $data['calcium'] ?? null,
+                    'gfr' => $gfrResult['gfr'],
+                    'gender' => $data['gender'],
+                    'risk_2_years' => $gfrResult['risk2Years'],
+                    'risk_5_years' => $gfrResult['risk5Years'],
+                    'phosphorous' => $data['phosphorous'] ?? null,
+                    'creatinine' => $data['creatinine'],
+                    'urine_creatinine' => $data['urine_creatinine'],
+                    'stage' => $gfrResult['stage'],
+                    'user_id' => $user ? $user->id : null,
+                    'albumin_creatinine_ratio' => $gfrResult['albumin_creatinine_ratio'],
+                ]);
 
-            //Schedule assessment reminders
-            (new ReminderScheduler)->scheduleAssessmentReminders($user, $test);
+                //Schedule assessment reminders
+                (new ReminderScheduler)->scheduleAssessmentReminders($user, $test);
 
-            $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'lab-test');
+                $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'lab-test');
+
+                return $test;
+            });
             
             return response()->json([
                 'message' => 'test saved successfully.',

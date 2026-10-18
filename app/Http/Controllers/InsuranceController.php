@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Insurance;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use App\Services\SendSMS;
@@ -78,12 +79,17 @@ class InsuranceController extends Controller
             $data['user_id'] = auth()->id();
             $data['status'] = 'created';
 
-            $insurance = Insurance::create($data);
+            // Same all-or-nothing as lab tests: no saved request with an unused payment if scheduling fails.
+            $insurance = DB::transaction(function () use ($data, $paymentService, $lastPayment) {
+                $insurance = Insurance::create($data);
 
-            //Creating reminders
-            (new ReminderScheduler)->scheduleInsuranceReminders(auth()->user(), $insurance);
+                //Creating reminders
+                (new ReminderScheduler)->scheduleInsuranceReminders(auth()->user(), $insurance);
 
-            $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'insurance');
+                $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'insurance');
+
+                return $insurance;
+            });
 
             return response()->json($insurance, 201);
         } catch (\Throwable $e) {
