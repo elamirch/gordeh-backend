@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\NutritionMonitoringController;
 use App\Http\Controllers\Admin\AlertRuleController;
 use App\Http\Controllers\Admin\MonitoringSettingsController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\SmsReminderController as AdminSmsReminderController;
 
 use App\Http\Controllers\NutritionConsultation\TypeController as NutritionTypeController;
 use App\Http\Controllers\NutritionConsultation\AvailabilityController as NutritionAvailabilityController;
@@ -109,6 +110,10 @@ Route::middleware(['auth:api', 'check_last_logout'])->group(function () {
         Route::get('admin/webinar-registrations', [AdminWebinarRegistrationController::class, 'index']);
         Route::post('admin/webinar-registrations', [AdminWebinarRegistrationController::class, 'store']);
         Route::delete('admin/webinar-registrations/{webinarRegistration}', [AdminWebinarRegistrationController::class, 'destroy']);
+
+        Route::get('admin/sms-reminders/overview', [AdminSmsReminderController::class, 'overview']);
+        Route::get('admin/sms-reminders', [AdminSmsReminderController::class, 'index']);
+        Route::post('admin/sms-reminders/{scheduledSms}/retry', [AdminSmsReminderController::class, 'retry']);
 
         Route::prefix('admin/nutrition-monitoring')->group(function () {
             Route::get('overview', [NutritionMonitoringController::class, 'overview']);

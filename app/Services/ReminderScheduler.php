@@ -56,6 +56,33 @@ class ReminderScheduler
     ];
 
     /**
+     * The segments reminders are tracked by in the admin panel: which message of which campaign. The
+     * assessment ones are further split by CKD stage (token2).
+     */
+    public const SEGMENTS = [
+        'assess_7d' => ['cron-assess-reminder-7d'],
+        'assess_due' => ['cron-assess-reminder'],
+        'assess_follow_up_low' => ['cron-assess-reminder-after'],
+        'assess_follow_up_high' => ['cron-assess-reminder-after-14d-onlyhigh'],
+        'assess_missed' => ['cron-assess-reminder-missed'],
+        'insurance_7d' => ['cron-insurance-reminder-7d'],
+        'insurance_14d' => ['cron-insurance-reminder-14d'],
+        'insurance_25d' => ['cron-insurance-reminder-25d'],
+        'insurance_missed' => ['cron-insurance-reminder-missed'],
+    ];
+
+    public static function segmentOf(string $template): string
+    {
+        foreach (self::SEGMENTS as $segment => $templates) {
+            if (in_array($template, $templates, true)) {
+                return $segment;
+            }
+        }
+
+        return 'other';
+    }
+
+    /**
      * Schedules the "7 days before", "due today" and "overdue" reminders for a lab test. A new test
      * supersedes the previous one, so the user's not-yet-sent assessment reminders are dropped first.
      * Slots already in the past (only when rescheduling an old test) are handed to
