@@ -74,4 +74,24 @@ class LabTestGfrTest extends TestCase
         $this->assertSame(1, $test['stage']);
     }
 
+    public function test_a_lab_test_without_bicarbonate_is_saved(): void
+    {
+        [$user, $test] = $this->submit('m', ['calcium' => 9.35, 'phosphorous' => 3.93]);
+
+        $this->assertNull($test['b_carbonate']);
+        $this->assertEqualsWithDelta(91.69, $test['gfr'], 0.01);
+        $this->assertDatabaseHas('lab_tests', ['id' => $test['id'], 'b_carbonate' => null]);
+        $this->assertDatabaseHas('payments', ['user_id' => $user->id, 'is_used_lab_test' => true]);
+        $this->assertSame(3, ScheduledSMS::where('lab_test_id', $test['id'])->count());
+    }
+
+    public function test_a_lab_test_without_any_optional_value_is_saved(): void
+    {
+        [, $test] = $this->submit('f', []);
+
+        $this->assertNull($test['calcium']);
+        $this->assertNull($test['phosphorous']);
+        $this->assertNull($test['b_carbonate']);
+        $this->assertSame(2, $test['stage']);
+    }
 }
