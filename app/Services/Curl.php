@@ -4,7 +4,7 @@ namespace App\Services;
 
 class Curl
 {
-    public function curl(string $url, string $data = null, array $header = null, string $request = null) {
+    public function curl(string $url, ?string $data = null, ?array $header = null, ?string $request = null) {
         //Session initialization
         $curl_session = curl_init($url);
         curl_setopt($curl_session, CURLOPT_RETURNTRANSFER, true);
@@ -22,6 +22,9 @@ class Curl
 
         //Adding timeout
         curl_setopt($curl_session, CURLOPT_CONNECTTIMEOUT, 10);
+        // Without a total timeout a gateway that accepts the connection but never answers holds the
+        // request (or queue worker) open indefinitely.
+        curl_setopt($curl_session, CURLOPT_TIMEOUT, 30);
 
         //Setting custom request if existed
         if($request == "DELETE") {

@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    // Kavenegar verify/lookup endpoint (the API key is part of the URL). Read through config so it
+    // still resolves after `php artisan config:cache`, where env() outside config files returns null.
+    'kavenegar' => [
+        'lookup_url' => env('SMS_API_URL'),
+    ],
+
 ];

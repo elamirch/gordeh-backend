@@ -13,7 +13,7 @@ trait GuardsSmsSending
      */
     private function sendSmsSafely(callable $send): void
     {
-        if (app()->runningUnitTests() || env('APP_DEBUG')) {
+        if (app()->runningUnitTests() || config('app.debug')) {
             return;
         }
 

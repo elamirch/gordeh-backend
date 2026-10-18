@@ -9,7 +9,7 @@ class SendSMS {
 
     public function __construct()
     {
-        $this->SMS_API_URL = env('SMS_API_URL');
+        $this->SMS_API_URL = config('services.kavenegar.lookup_url');
         $this->curl = new Curl;
     }
     
@@ -29,8 +29,8 @@ class SendSMS {
 
         $payload = http_build_query([
             'receptor' => $phoneNumber,
-            'token' => $userFirstName,
-            'token2' => $identification_code,
+            'token' => ReminderScheduler::nameToken($userFirstName),
+            'token2' => preg_replace('/\s+/u', '', (string) $identification_code),
             'template' => 'insurance-generated'
         ]);
 
@@ -58,7 +58,7 @@ class SendSMS {
 
         $payload = http_build_query([
             'receptor' => $phoneNumber,
-            'token' => $userFirstName,
+            'token' => ReminderScheduler::nameToken($userFirstName),
             'token2' => $ticketId,
             'template' => 'support-new-ticket'
         ]);
@@ -70,7 +70,7 @@ class SendSMS {
 
         $payload = http_build_query([
             'receptor' => $phoneNumber,
-            'token' => $userFirstName,
+            'token' => ReminderScheduler::nameToken($userFirstName),
             'template' => 'support-callback-request'
         ]);
 
@@ -81,7 +81,7 @@ class SendSMS {
 
         $payload = http_build_query([
             'receptor' => $phoneNumber,
-            'token' => $userFirstName,
+            'token' => ReminderScheduler::nameToken($userFirstName),
             'token2' => $ticketId,
             'template' => 'support-reply'
         ]);
@@ -93,7 +93,7 @@ class SendSMS {
 
         $payload = http_build_query([
             'receptor' => $phoneNumber,
-            'token' => $userFirstName,
+            'token' => ReminderScheduler::nameToken($userFirstName),
             'token2' => $ticketId,
             'template' => 'support-ticket-closed'
         ]);
