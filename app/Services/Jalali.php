@@ -55,4 +55,24 @@ class Jalali
 
         return $j['jy'] . "/" . $j['jm'] . "/" . $j['jd'];
     }
+
+    public const MONTHS = [
+        1 => 'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+        'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
+    ];
+
+    /**
+     * Turns a date stored by format() ("1405/8/26") into "26 مهر 1405" for SMS. Kavenegar rejects
+     * the slashes in token/token2/token3 (error 431); this shape goes in token10, which allows
+     * spaces. Returns null for anything that isn't such a date.
+     */
+    public static function spoken(?string $formatted): ?string
+    {
+        if (! preg_match('#^(\d{4})/(\d{1,2})/(\d{1,2})$#', (string) $formatted, $m)
+            || ! isset(self::MONTHS[(int) $m[2]])) {
+            return null;
+        }
+
+        return (int) $m[3] . ' ' . self::MONTHS[(int) $m[2]] . ' ' . $m[1];
+    }
 }

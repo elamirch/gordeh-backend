@@ -152,7 +152,7 @@ class AdminSmsReminderTest extends TestCase
         $sms->supportReply('09123456789', 'محمد علی', 12);
         parse_str($curl->sent[1], $payload);
         $this->assertSame('https://sms.test/lookup.json', $curl->sent[0]);
-        $this->assertSame("محمد\u{200C}علی", $payload['token']);
+        $this->assertSame('محمدعلی', $payload['token']);
 
         $sms->supportNewTicket('09123456789', '', 12);
         parse_str($curl->sent[1], $payload);

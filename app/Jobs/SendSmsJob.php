@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\ScheduledSMS;
+use App\Services\Jalali;
 use App\Services\ReminderScheduler;
 use App\Services\SendSMS;
 use Illuminate\Bus\Queueable;
@@ -36,12 +37,17 @@ class SendSmsJob implements ShouldQueue
         }
 
         try {
+            // Rows keep the due date as "1405/8/26" in token3, but Kavenegar rejects slashes there,
+            // so it goes out in token10 as "26 مهر 1405" (the templates read %token10).
+            $date = Jalali::spoken($sms->token3);
+
             $response = $SendSMS->reminder(
                 $sms->phone_number,
                 $sms->template,
                 ReminderScheduler::nameToken($sms->token),
                 $sms->token2,
-                $sms->token3
+                $date ? null : $sms->token3,
+                $date
             );
 
             // Kavenegar reports errors (unknown template, invalid token, no credit, ...) in the response

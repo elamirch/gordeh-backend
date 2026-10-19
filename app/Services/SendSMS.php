@@ -30,7 +30,7 @@ class SendSMS {
         $payload = http_build_query([
             'receptor' => $phoneNumber,
             'token' => ReminderScheduler::nameToken($userFirstName),
-            'token2' => preg_replace('/\s+/u', '', (string) $identification_code),
+            'token2' => preg_replace('/[^\p{L}\p{N}]+/u', '', (string) $identification_code),
             'template' => 'insurance-generated'
         ]);
 
@@ -39,15 +39,17 @@ class SendSMS {
 
     /**
      * Sends a scheduled reminder. Only the tokens a template uses are set on the row, so empty
-     * ones are left out of the request.
+     * ones are left out of the request. token10 is the one slot that may hold spaces (up to 5),
+     * used for dates like "26 مهر 1405".
      */
-    public function reminder($phoneNumber, $template, $token, $token2 = null, $token3 = null) {
+    public function reminder($phoneNumber, $template, $token, $token2 = null, $token3 = null, $token10 = null) {
 
         $payload = http_build_query(array_filter([
             'receptor' => $phoneNumber,
             'token' => $token,
             'token2' => $token2,
             'token3' => $token3,
+            'token10' => $token10,
             'template' => $template
         ], fn ($value) => $value !== null && $value !== ''));
 

@@ -285,17 +285,18 @@ class ReminderScheduler
     }
 
     /**
-     * Kavenegar rejects an empty token and spaces inside token/token2/token3, so a missing name
-     * falls back to "کاربر" and spaces become zero-width non-joiners (keeps the name readable).
+     * Kavenegar only accepts letters and digits in token/token2/token3 (error 431 for spaces,
+     * underscores, separators, and the zero-width non-joiners this used to put in place of spaces),
+     * so everything else is dropped: "محمد علی" becomes "محمدعلی". An empty name falls back to "کاربر".
      */
     public static function nameToken(?string $name): string
     {
-        $name = trim((string) $name);
+        $name = preg_replace('/[^\p{L}\p{N}]+/u', '', (string) $name);
 
         if ($name === '') {
             return 'کاربر';
         }
 
-        return mb_substr(preg_replace('/\s+/u', "\u{200C}", $name), 0, 50);
+        return mb_substr($name, 0, 50);
     }
 }

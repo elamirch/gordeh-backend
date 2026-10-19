@@ -131,7 +131,7 @@ class ScheduledSmsTest extends TestCase
         ], $this->sendAtByTemplate($user));
 
         $sevenDay = ScheduledSMS::where('template', 'cron-assess-reminder-7d')->first();
-        $this->assertSame("Amir\u{200C}Mahdi", $sevenDay->token);
+        $this->assertSame('AmirMahdi', $sevenDay->token);
         $this->assertSame('3', (string) $sevenDay->token2);
         // The appointment date in the text is the due date (2027-01-23 = 1405/11/3), not the send date.
         $this->assertSame('1405/11/3', $sevenDay->token3);
@@ -155,7 +155,10 @@ class ScheduledSmsTest extends TestCase
     {
         $this->assertSame('کاربر', ReminderScheduler::nameToken(null));
         $this->assertSame('کاربر', ReminderScheduler::nameToken('  '));
-        $this->assertSame("محمد\u{200C}علی", ReminderScheduler::nameToken(' محمد علی '));
+        // Letters and digits only: spaces, underscores and zero-width non-joiners all get error 431.
+        $this->assertSame('محمدعلی', ReminderScheduler::nameToken(' محمد علی '));
+        $this->assertSame('علیرضا', ReminderScheduler::nameToken("علی\u{200C}رضا_"));
+        $this->assertSame('کاربر', ReminderScheduler::nameToken('_ - .'));
         $this->assertSame(50, mb_strlen(ReminderScheduler::nameToken(str_repeat('a', 80))));
     }
 
@@ -183,7 +186,7 @@ class ScheduledSmsTest extends TestCase
         $this->mock(SendSMS::class)
             ->shouldReceive('reminder')
             ->once()
-            ->with($user->phone_number, 'cron-insurance-reminder-7d', 'کاربر', null, null)
+            ->with($user->phone_number, 'cron-insurance-reminder-7d', 'کاربر', null, null, null)
             ->andReturn(json_decode('{"return":{"status":200,"message":"ok"}}'));
 
         SendSmsJob::dispatchSync($sms->id);
@@ -191,6 +194,23 @@ class ScheduledSmsTest extends TestCase
         $sms->refresh();
         $this->assertSame('sent', $sms->status);
         $this->assertNotNull($sms->sent_at);
+    }
+
+    public function test_job_sends_the_due_date_in_token10_without_slashes(): void
+    {
+        $user = $this->patient();
+        // A row scheduled before this change still carries a zero-width non-joiner in its name.
+        $sms = ScheduledSMS::create(['user_id' => $user->id, 'phone_number' => $user->phone_number, 'template' => 'cron-assess-reminder-7d', 'token' => "Amir\u{200C}Mahdi", 'token2' => '3', 'token3' => '1405/11/3', 'send_at' => now(), 'status' => 'processing']);
+
+        $this->mock(SendSMS::class)
+            ->shouldReceive('reminder')
+            ->once()
+            ->with($user->phone_number, 'cron-assess-reminder-7d', 'AmirMahdi', '3', null, '3 بهمن 1405')
+            ->andReturn(json_decode('{"return":{"status":200,"message":"ok"}}'));
+
+        SendSmsJob::dispatchSync($sms->id);
+
+        $this->assertSame('sent', $sms->refresh()->status);
     }
 
     public function test_job_marks_reminder_failed_when_kavenegar_rejects_it(): void
