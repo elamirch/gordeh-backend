@@ -66,10 +66,16 @@ class TicketService
 
         Log::info('support.ticket_created', ['ticket_id' => $ticket->id, 'user_id' => $patient->id]);
 
-        $this->sendSmsSafely(fn () => (new SendSMS)->supportNewTicket(
+        $this->sendSmsSafely('support-new-ticket', fn () => (new SendSMS)->supportNewTicket(
             $patient->phone_number,
             $patient->first_name ?? 'کاربر',
             $ticket->id
+        ));
+
+        $this->notifyAdminSafely('support-admin-new-ticket', fn ($adminPhone) => (new SendSMS)->supportAdminNewTicket(
+            $adminPhone,
+            $ticket->id,
+            $patient->first_name
         ));
 
         return $ticket;
@@ -95,6 +101,12 @@ class TicketService
         Log::info('support.ticket_message_created', ['ticket_id' => $ticket->id, 'user_id' => $patient->id]);
 
         TicketMessageSent::dispatch($message);
+
+        $this->notifyAdminSafely('support-admin-patient-message', fn ($adminPhone) => (new SendSMS)->supportAdminPatientMessage(
+            $adminPhone,
+            $ticket->id,
+            $patient->first_name
+        ));
 
         return $message;
     }
@@ -170,7 +182,7 @@ class TicketService
 
         $patient = $ticket->user;
         if ($patient) {
-            $this->sendSmsSafely(fn () => (new SendSMS)->supportReply(
+            $this->sendSmsSafely('support-reply', fn () => (new SendSMS)->supportReply(
                 $patient->phone_number,
                 $patient->first_name ?? 'کاربر',
                 $ticket->id
@@ -219,7 +231,7 @@ class TicketService
             if ($ticket->status === 'closed') {
                 $patient = $ticket->user;
                 if ($patient) {
-                    $this->sendSmsSafely(fn () => (new SendSMS)->supportTicketClosed(
+                    $this->sendSmsSafely('support-ticket-closed', fn () => (new SendSMS)->supportTicketClosed(
                         $patient->phone_number,
                         $patient->first_name ?? 'کاربر',
                         $ticket->id

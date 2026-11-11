@@ -15,14 +15,16 @@ class PatientController extends Controller
 {
     public function index()
     {
-        $patients = User::where('role', 'user')->with('patientProfile')->get();
+        $patients = User::visibleToProvider(auth()->user())->with('patientProfile')->get();
 
         return response()->json($patients->map(fn (User $user) => $this->summarize($user))->values());
     }
 
     public function show(User $user)
     {
-        if ($user->role !== 'user') {
+        // 404 (not 403) for patients outside this provider's scope: the frontend already treats
+        // 404 as "no full record for this id", and it avoids confirming that the id exists.
+        if ($user->role !== 'user' || ! User::visibleToProvider(auth()->user())->whereKey($user->id)->exists()) {
             abort(404);
         }
 
@@ -36,6 +38,19 @@ class PatientController extends Controller
             'files' => $this->files($user),
             'timeline' => $this->timeline($user),
         ]));
+    }
+
+    /** Every uploaded file across the patients this provider may see (the Files page). */
+    public function allFiles()
+    {
+        $patients = User::visibleToProvider(auth()->user())->get(['id', 'first_name', 'last_name'])->keyBy('id');
+
+        $files = StoredFile::whereIn('user_id', $patients->keys())->orderByDesc('created_at')->get();
+
+        return response()->json($files->map(fn (StoredFile $f) => array_merge($this->presentFile($f), [
+            'patientId' => $f->user_id,
+            'patientName' => trim(($patients[$f->user_id]->first_name ?? '').' '.($patients[$f->user_id]->last_name ?? '')),
+        ]))->values());
     }
 
     private function summarize(User $user): array
@@ -177,14 +192,20 @@ class PatientController extends Controller
         return StoredFile::where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (StoredFile $f) => [
-                'n' => $f->originalFileName ?? $f->fileName,
-                't' => self::FILE_CATEGORY_LABELS[$f->category] ?? 'مدرک',
-                'd' => JalaliDate::dayMonth($f->created_at),
-                'by' => 'بیمار',
-                's' => $this->fileSizeLabel($f->url),
-                'url' => $f->signed_url,
-            ])->values()->all();
+            ->map(fn (StoredFile $f) => $this->presentFile($f))
+            ->values()->all();
+    }
+
+    private function presentFile(StoredFile $f): array
+    {
+        return [
+            'n' => $f->originalFileName ?? $f->fileName,
+            't' => self::FILE_CATEGORY_LABELS[$f->category] ?? 'مدرک',
+            'd' => JalaliDate::dayMonth($f->created_at),
+            'by' => 'بیمار',
+            's' => $this->fileSizeLabel($f->url),
+            'url' => $f->signed_url,
+        ];
     }
 
     private function fileSizeLabel(?string $path): string

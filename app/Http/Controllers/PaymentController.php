@@ -13,13 +13,16 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'integer', 'min:1000'],
             'callback_url' => ['nullable', 'url'],
+            // What the payment buys: the original one-off credit, a consultation, or a wallet top-up.
+            'purpose' => ['nullable', 'in:analysis,consultation,wallet'],
         ]);
 
         return response()->json(
             $service->requestPayment(
                 auth()->user(),
                 $validated['amount'],
-                $validated['callback_url'] ?? null
+                $validated['callback_url'] ?? null,
+                $validated['purpose'] ?? 'analysis'
             )
         );
     }
@@ -32,6 +35,18 @@ class PaymentController extends Controller
 
         return response()->json(
             $service->verifyPayment($validated['authority'])
+        );
+    }
+
+    public function verifyBazaar(Request $request, PaymentService $service)
+    {
+        $validated = $request->validate([
+            'product_id' => ['required', 'string', 'max:100'],
+            'purchase_token' => ['required', 'string', 'max:200'],
+        ]);
+
+        return response()->json(
+            $service->verifyBazaarPurchase(auth()->user(), $validated['product_id'], $validated['purchase_token'])
         );
     }
 

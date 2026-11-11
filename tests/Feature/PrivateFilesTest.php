@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ConsultationBooking;
 use App\Models\StoredFile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,12 +86,22 @@ class PrivateFilesTest extends TestCase
         $admin = $this->user('admin');
         $file = $this->upload($owner);
 
+        // A provider only reaches files of patients in their scope (here: a consultation request
+        // they own); a provider with no link to the patient is refused.
+        ConsultationBooking::create([
+            'user_id' => $owner->id, 'provider_id' => $provider->id, 'type' => 'initial',
+            'date' => now()->addDay()->toDateString(), 'time' => '10:00',
+            'full_name' => 'Owner', 'phone_number' => $owner->phone_number, 'status' => 'called',
+        ]);
+        $unrelatedProvider = $this->user('provider');
+
         $this->withHeaders($this->as($other))->getJson('/api/stored-files/'.$file['id'])->assertForbidden();
         $this->withHeaders($this->as($other))->deleteJson('/api/stored-files/'.$file['id'])->assertForbidden();
         $this->withHeaders($this->as($other))->getJson('/api/stored-files')->assertOk()->assertJsonCount(0);
 
         $this->withHeaders($this->as($owner))->getJson('/api/stored-files/'.$file['id'])->assertOk();
         $this->withHeaders($this->as($provider))->getJson('/api/stored-files/'.$file['id'])->assertOk();
+        $this->withHeaders($this->as($unrelatedProvider))->getJson('/api/stored-files/'.$file['id'])->assertForbidden();
         $this->withHeaders($this->as($provider))->deleteJson('/api/stored-files/'.$file['id'])->assertForbidden();
         $this->withHeaders($this->as($admin))->getJson('/api/stored-files')->assertOk()->assertJsonCount(1);
 

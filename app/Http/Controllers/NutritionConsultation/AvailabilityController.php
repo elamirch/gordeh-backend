@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\NutritionConsultation;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\ScheduleService;
 use App\Support\JalaliDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AvailabilityController extends Controller
 {
@@ -16,7 +18,10 @@ class AvailabilityController extends Controller
             'type' => 'nullable|string|in:initial,follow',
             'days' => 'nullable|integer|min:1|max:30',
             'date' => 'nullable|date',
+            'provider_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($q) => $q->whereIn('id', User::activeProvider()->select('id')))],
         ]);
+
+        $providerId = isset($data['provider_id']) ? (int) $data['provider_id'] : null;
 
         $numDays = $data['days'] ?? 6;
         $today = Carbon::today();
@@ -28,7 +33,7 @@ class AvailabilityController extends Controller
                 'label' => $scheduleService->weekdayLabel($date),
                 'date' => JalaliDate::dayMonth($date),
                 'isoDate' => $date->toDateString(),
-                'available' => $scheduleService->isDateAvailable($date),
+                'available' => $scheduleService->isDateAvailable($date, $providerId),
             ];
         }
 
@@ -40,7 +45,7 @@ class AvailabilityController extends Controller
                 'isoTime' => $slot['time'],
                 'available' => $slot['available'],
             ],
-            $scheduleService->slotsForDate($selectedDate)
+            $scheduleService->slotsForDate($selectedDate, $providerId)
         );
 
         return response()->json([

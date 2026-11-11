@@ -35,9 +35,17 @@ class ChatController extends Controller
             'status' => ['required', Rule::in(ChatService::STATUSES)],
         ]);
 
-        $session = $this->service->updateStatus($chatSession, $data['status']);
+        $session = $this->service->setStatusByAgent($chatSession, $data['status'], auth()->user());
 
         return response()->json($this->service->presentSessionForAdmin($session));
+    }
+
+    // POST /admin/chat/sessions/{chatSession}/typing
+    public function typing(ChatSession $chatSession): JsonResponse
+    {
+        $this->service->markTyping($chatSession);
+
+        return response()->json(null, 204);
     }
 
     // GET /admin/chat/messages?sessionId=
@@ -51,6 +59,9 @@ class ChatController extends Controller
         if (! $session) {
             return response()->json(['message' => 'Chat session not found'], 404);
         }
+
+        // Opening the conversation is what "seen" means for the user's read receipt.
+        $this->service->markReadByAgent($session);
 
         $messages = $this->service->history($session);
 
@@ -71,7 +82,7 @@ class ChatController extends Controller
             return response()->json(['message' => 'Chat session not found'], 404);
         }
 
-        $message = $this->service->addMessage($session, 'support', $data['text'], $data['fileUrl'] ?? null);
+        $message = $this->service->addMessage($session, 'support', $data['text'], $data['fileUrl'] ?? null, auth()->user());
 
         return response()->json($this->service->present($message), 201);
     }

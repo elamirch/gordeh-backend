@@ -8,10 +8,12 @@ class CallbackRequest extends Model
 {
     protected $fillable = [
         'user_id',
+        'name',
         'phone',
         'slot',
         'topic',
         'status',
+        'source',
     ];
 
     protected $casts = [

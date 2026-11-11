@@ -10,3 +10,11 @@ Artisan::command('inspire', function () {
 
 Schedule::command('gordeh:sms')
     ->everyMinute();
+
+Schedule::command('gordeh:support-chat-housekeeping')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::command('gordeh:nephrology-housekeeping')
+    ->everyMinute()
+    ->withoutOverlapping();

@@ -38,7 +38,7 @@ class LabTestGfrTest extends TestCase
                 'age' => 50,
                 'gender' => $gender,
                 'creatinine' => 1.0,
-                'urine_creatinine' => 100,
+                'urine_creatinine' => 1.0, // g/L
                 'urine_albumin' => 30,
                 'albumin' => 4.0,
             ] + $optionalLabs)

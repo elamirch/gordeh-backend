@@ -14,8 +14,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
- * Tracking for the scheduled reminder SMSs (gordeh:sms), broken down by segment (which message of
- * which campaign) and, for assessment reminders, by CKD stage.
+ * Tracking for the scheduled reminder SMSs (gordeh:sms) and the ones sent right away
+ * (SendSMS::instant), broken down by segment (which message of which campaign) and, for
+ * assessment reminders, by CKD stage.
  */
 class SmsReminderController extends Controller
 {
@@ -179,6 +180,9 @@ class SmsReminderController extends Controller
         if ($scheduledSms->status !== 'failed') {
             return response()->json(['message' => 'فقط پیامک‌های ناموفق را می‌توان دوباره ارسال کرد.'], 422);
         }
+        if (self::isInstant($scheduledSms)) {
+            return response()->json(['message' => 'پیامک‌های لحظه‌ای را نمی‌توان دوباره ارسال کرد.'], 422);
+        }
 
         // send_at is kept: gordeh:sms sends it on its next run, or, if it is too late to send as-is,
         // folds it into the "missed" replacement message like any other late reminder.
@@ -203,6 +207,7 @@ class SmsReminderController extends Controller
             'segment' => ReminderScheduler::segmentOf($sms->template),
             'stage' => $isAssessment && is_numeric($sms->token2) ? (int) $sms->token2 : null,
             'status' => $sms->status,
+            'retryable' => ! self::isInstant($sms),
             'isStuck' => $sms->status === 'processing'
                 && $sms->updated_at?->lt(now()->subMinutes(self::STUCK_AFTER_MINUTES)),
             'isOverdue' => $sms->status === 'pending'
@@ -214,6 +219,11 @@ class SmsReminderController extends Controller
             'insuranceId' => $sms->insurance_id,
             'createdAt' => $sms->created_at?->toIso8601String(),
         ];
+    }
+
+    private static function isInstant(ScheduledSMS $sms): bool
+    {
+        return in_array(ReminderScheduler::segmentOf($sms->template), ReminderScheduler::INSTANT_SEGMENTS, true);
     }
 
     private static function stuck(Builder $query): Builder

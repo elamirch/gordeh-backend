@@ -46,3 +46,16 @@ Broadcast::channel('ticket.{ticketId}', function (User $user, int $ticketId) {
 Broadcast::channel('support.agents', function (User $user) {
     return $user->isSupportStaff();
 }, $apiGuardOnly);
+
+// Both people of one nephrology consultation (patient and doctor), nobody else — not even
+// support staff: the conversation is medical.
+Broadcast::channel('nephro.consultation.{consultationId}', function (User $user, int $consultationId) {
+    $c = \App\Models\NephroConsultation::find($consultationId);
+
+    return $c !== null && in_array((int) $user->id, [(int) $c->patient_id, (int) $c->nephrologist_id], true);
+}, $apiGuardOnly);
+
+// A user's own consultation inbox.
+Broadcast::channel('nephro.inbox.{userId}', function (User $user, int $userId) {
+    return (int) $user->id === $userId;
+}, $apiGuardOnly);

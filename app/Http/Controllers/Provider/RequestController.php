@@ -18,7 +18,8 @@ class RequestController extends Controller
 
     public function index()
     {
-        $requests = ConsultationBooking::with(['user', 'provider', 'calls' => fn ($q) => $q->orderByDesc('created_at')])
+        $requests = $this->visibleRequests()
+            ->with(['user', 'provider', 'calls' => fn ($q) => $q->orderByDesc('created_at')])
             ->orderByDesc('created_at')
             ->get();
 
@@ -27,6 +28,8 @@ class RequestController extends Controller
 
     public function updateStatus(Request $request, ConsultationBooking $consultationRequest)
     {
+        $this->authorizeRequest($consultationRequest);
+
         $data = $request->validate([
             'status' => ['required', Rule::in(self::STATUSES)],
         ]);
@@ -34,7 +37,9 @@ class RequestController extends Controller
         $previousProviderId = $consultationRequest->provider_id;
 
         $consultationRequest->status = $data['status'];
-        $consultationRequest->provider_id = auth()->id();
+        // The patient picks the specialist when booking; only an unassigned (older) request is
+        // claimed by whoever acts on it, so an admin updating a status doesn't take it over.
+        $consultationRequest->provider_id ??= auth()->id();
         $consultationRequest->save();
 
         AuditLog::record('status_change', $consultationRequest);
@@ -50,7 +55,7 @@ class RequestController extends Controller
                 ['consultation_booking_id' => $consultationRequest->id],
                 [
                     'user_id' => $consultationRequest->user_id,
-                    'provider_id' => auth()->id(),
+                    'provider_id' => $consultationRequest->provider_id,
                     'date' => $consultationRequest->date,
                     'time' => $consultationRequest->time,
                     'status' => 'requested',
@@ -63,6 +68,8 @@ class RequestController extends Controller
 
     public function storeCall(Request $request, ConsultationBooking $consultationRequest)
     {
+        $this->authorizeRequest($consultationRequest);
+
         $data = $request->validate([
             'durationSec' => 'required|integer|min:0',
             'outcome' => 'nullable|string',
@@ -78,6 +85,27 @@ class RequestController extends Controller
         AuditLog::record('call_logged', $consultationRequest);
 
         return response()->json($call, 201);
+    }
+
+    /**
+     * Requests a provider may see: the shared inbox (not yet claimed by anyone) plus the ones
+     * they own. Admins see every request. Mirrors User::scopeVisibleToProvider().
+     */
+    private function visibleRequests()
+    {
+        $query = ConsultationBooking::query();
+
+        if (auth()->user()->role === 'admin') {
+            return $query;
+        }
+
+        return $query->where(fn ($q) => $q->whereNull('provider_id')->orWhere('provider_id', auth()->id()));
+    }
+
+    // 404 (not 403) so another provider's request ids aren't confirmed to exist.
+    private function authorizeRequest(ConsultationBooking $booking): void
+    {
+        abort_unless($this->visibleRequests()->whereKey($booking->id)->exists(), 404);
     }
 
     private function present(ConsultationBooking $b): array

@@ -8,6 +8,7 @@ use App\Models\ConsultationBooking;
 use App\Models\ProviderNotification;
 use App\Models\ProviderProfile;
 use App\Models\User;
+use App\Services\NutritionConsultation\ConsultationSms;
 use App\Services\NutritionMonitoring\MonitoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,21 +52,51 @@ class NutritionMonitoringController extends Controller
             $notifiedViaPanel = true;
         }
 
-        return response()->json(['ok' => true, 'notifiedViaPanel' => $notifiedViaPanel]);
+        $notifiedViaSms = false;
+        if ($settings->notify_sms && $consultationBooking->provider_id) {
+            (new ConsultationSms)->requestReminder($consultationBooking->load('provider'));
+            $notifiedViaSms = true;
+        }
+
+        return response()->json(['ok' => true, 'notifiedViaPanel' => $notifiedViaPanel, 'notifiedViaSms' => $notifiedViaSms]);
     }
 
     public function reassignQueueItem(Request $request, ConsultationBooking $consultationBooking)
     {
         $data = $request->validate([
-            'providerId' => ['nullable', 'integer', 'exists:users,id'],
+            'providerId' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where(fn ($q) => $q->whereIn('id', User::activeProvider()->select('id')))],
         ]);
 
+        $previousProviderId = $consultationBooking->provider_id;
         $consultationBooking->provider_id = $data['providerId'] ?? null;
         $consultationBooking->save();
 
         AuditLog::record('assignment', $consultationBooking);
 
+        if ($consultationBooking->provider_id && $consultationBooking->provider_id !== $previousProviderId) {
+            (new ConsultationSms)->requestAssigned($consultationBooking->load('provider'));
+        }
+
         return response()->json($this->service->queueItem($consultationBooking->fresh()));
+    }
+
+    /**
+     * Turns a specialist on or off. An inactive one (e.g. a test account) can't be picked when
+     * booking, has no free slots and gets no SMS; their existing requests are left as they are.
+     */
+    public function updateSpecialist(Request $request, User $user)
+    {
+        abort_unless($user->role === 'provider', 404);
+
+        $data = $request->validate(['active' => ['required', 'boolean']]);
+
+        $profile = ProviderProfile::firstOrNew(['user_id' => $user->id]);
+        $profile->is_active = $data['active'];
+        $profile->save();
+
+        AuditLog::record($data['active'] ? 'specialist.activated' : 'specialist.deactivated', $user);
+
+        return response()->json(['id' => $user->id, 'active' => $profile->is_active]);
     }
 
     /**

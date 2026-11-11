@@ -93,7 +93,7 @@ class PaymentDiscountTest extends TestCase
             ->postJson('/api/lab-tests', [
                 'age' => 40,
                 'gender' => 'm',
-                'urine_creatinine' => 90,
+                'urine_creatinine' => 0.9, // g/L
                 'urine_albumin' => 20,
                 'creatinine' => 1.1,
                 'albumin' => 4.0,
@@ -113,7 +113,7 @@ class PaymentDiscountTest extends TestCase
             ->postJson('/api/lab-tests', [
                 'age' => 40,
                 'gender' => 'm',
-                'urine_creatinine' => 90,
+                'urine_creatinine' => 0.9, // g/L
                 'urine_albumin' => 20,
                 'creatinine' => 1.1,
                 'albumin' => 4.0,

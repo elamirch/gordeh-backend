@@ -8,6 +8,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Carbon\Carbon;
 use App\Services\SendSMS;
+use App\Services\Support\AgentPresenceService;
 
 class AuthController extends Controller
 {
@@ -50,7 +51,11 @@ class AuthController extends Controller
     */
     public function logout()
     {
+        $user = auth()->user();
+
         JWTAuth::invalidate(JWTAuth::getToken());
+        app(AgentPresenceService::class)->signedOut($user);
+
         return response()->json(['message' => 'Logged out successfully']);
     }
     
@@ -91,6 +96,7 @@ class AuthController extends Controller
     
         $user->last_logout = Carbon::now();
         $user->save();
+        app(AgentPresenceService::class)->signedOut($user);
 
         return response()->json(['message' => 'Logged out from all devices']);
     }

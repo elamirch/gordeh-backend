@@ -112,6 +112,14 @@ class SupportBroadcastingTest extends TestCase
         $this->assertSame(403, $this->authorize($stranger, "chat.{$session->id}"));
     }
 
+    public function test_guest_chat_channel_is_open_to_staff_only(): void
+    {
+        $session = ChatSession::create(['user_id' => null, 'guest_phone' => '09121234567', 'status' => 'waiting']);
+
+        $this->assertSame(403, $this->authorize($this->patient(), "chat.{$session->id}"));
+        $this->assertSame(200, $this->authorize($this->agent(), "chat.{$session->id}"));
+    }
+
     public function test_patient_cannot_authorize_support_agents_channel(): void
     {
         $this->assertSame(403, $this->authorize($this->patient(), 'support.agents'));

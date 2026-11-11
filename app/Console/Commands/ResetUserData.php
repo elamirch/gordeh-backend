@@ -115,6 +115,7 @@ class ResetUserData extends Command
                 'otp_code_expiration' => null,
                 'birth_date'          => null,
                 'support_state'       => 'offline',
+                'support_state_at'    => null,
                 'last_logout'         => Carbon::now(),
             ])->save();
         });

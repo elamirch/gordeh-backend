@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Models\ConsultationBooking;
 use App\Models\ProviderWeeklyHours;
+use App\Models\User;
 use Carbon\Carbon;
 
 class ScheduleService
@@ -28,11 +30,12 @@ class ScheduleService
     /**
      * Returns [{time, available}] for the given date.
      * When $providerId is null, aggregates across every provider with working hours that day —
-     * a time is available if at least one provider is free.
+     * a time is available if at least one provider is free. Inactive providers never count.
      */
     public function slotsForDate(Carbon $date, ?int $providerId = null): array
     {
-        $weeklyHoursQuery = ProviderWeeklyHours::where('d', $date->dayOfWeek)->where('on', true);
+        $weeklyHoursQuery = ProviderWeeklyHours::where('d', $date->dayOfWeek)->where('on', true)
+            ->whereIn('provider_id', User::activeProvider()->select('id'));
         if ($providerId) {
             $weeklyHoursQuery->where('provider_id', $providerId);
         }
@@ -66,6 +69,19 @@ class ScheduleService
             }
         }
 
+        // A request the patient booked with a specialist holds that slot until it is scheduled
+        // (then the Appointment above holds it) or finished.
+        $pendingQuery = ConsultationBooking::whereDate('date', $date->toDateString())
+            ->whereNotNull('provider_id')
+            ->whereNotIn('status', ['done', 'sent', 'canceled'])
+            ->whereDoesntHave('appointment');
+        if ($providerId) {
+            $pendingQuery->where('provider_id', $providerId);
+        }
+        foreach ($pendingQuery->get(['provider_id', 'time']) as $booking) {
+            $bookedProvidersByTime[$booking->time][] = $booking->provider_id;
+        }
+
         $slots = [];
         foreach ($providersByTime as $time => $providerIds) {
             $freeProviders = array_diff(array_unique($providerIds), $bookedProvidersByTime[$time] ?? []);
@@ -76,6 +92,17 @@ class ScheduleService
         }
 
         return $slots;
+    }
+
+    public function isSlotAvailable(Carbon $date, string $time, int $providerId): bool
+    {
+        foreach ($this->slotsForDate($date, $providerId) as $slot) {
+            if ($slot['time'] === $time) {
+                return $slot['available'];
+            }
+        }
+
+        return false;
     }
 
     public function isDateAvailable(Carbon $date, ?int $providerId = null): bool

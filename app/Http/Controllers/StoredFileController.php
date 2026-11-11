@@ -62,13 +62,13 @@ class StoredFileController extends Controller
         return response()->json(null, 204);
     }
 
-    /** Owner and admins always; providers may also view (not delete) patients' files. */
+    /** Owner and admins always; providers may also view (not delete) files of patients in their scope. */
     private function authorizeAccess(StoredFile $storedFile, bool $providerMayView): void
     {
         $user = auth()->user();
         $allowed = $storedFile->user_id === $user->id
             || $user->role === 'admin'
-            || ($providerMayView && $user->role === 'provider');
+            || ($providerMayView && $user->role === 'provider' && $user->canViewPatient($storedFile->user_id));
 
         abort_unless($allowed, 403, 'Forbidden');
     }

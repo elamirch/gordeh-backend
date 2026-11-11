@@ -6,9 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\ConsultationBooking;
 use App\Models\ConsultationType;
+use App\Services\NutritionConsultation\ConsultationSms;
+use App\Models\User;
+use App\Services\PaymentService;
 use App\Services\ScheduleService;
+use Illuminate\Support\Facades\DB;
 use App\Support\JalaliDate;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
@@ -20,9 +27,10 @@ class BookingController extends Controller
         'noshow' => 'عدم حضور',
     ];
 
-    public function store(Request $request)
+    public function store(Request $request, ScheduleService $scheduleService)
     {
         $data = $request->validate([
+            'provider_id' => ['required', 'integer', Rule::exists('users', 'id')->where(fn ($q) => $q->whereIn('id', User::activeProvider()->select('id')))],
             'type' => 'required|string|in:initial,follow',
             'date' => 'required|date',
             'time' => 'required|string',
@@ -35,10 +43,29 @@ class BookingController extends Controller
             'use_existing_lab' => 'nullable|boolean',
         ]);
 
-        $booking = ConsultationBooking::create(array_merge($data, [
-            'user_id' => auth()->id(),
-            'status' => 'new',
-        ]));
+        // The patient picks the specialist, so the slot has to be free for that specialist.
+        if (! $scheduleService->isSlotAvailable(Carbon::parse($data['date']), $data['time'], (int) $data['provider_id'])) {
+            throw ValidationException::withMessages(['time' => ['این ساعت برای متخصص انتخاب‌شده آزاد نیست.']]);
+        }
+
+        // The request and its payment succeed or fail together: a pre-paid consultation (Bazaar)
+        // is spent first, otherwise the price is taken from the wallet — a 403 with the
+        // shortfall when it cannot cover it, and no booking is made.
+        $booking = DB::transaction(function () use ($data) {
+            $booking = ConsultationBooking::create(array_merge($data, [
+                'user_id' => auth()->id(),
+                'status' => 'new',
+            ]));
+
+            (new PaymentService)->charge(auth()->user(), 'consultation');
+
+            return $booking;
+        });
+
+        $booking->load('provider');
+        $sms = new ConsultationSms;
+        $sms->bookingRegistered($booking);
+        $sms->newRequest($booking);
 
         return response()->json($booking, 201);
     }
@@ -97,7 +124,7 @@ class BookingController extends Controller
         return response()->json($past->values());
     }
 
-    public function reschedule(Request $request, Appointment $appointment)
+    public function reschedule(Request $request, Appointment $appointment, ScheduleService $scheduleService)
     {
         if ($appointment->user_id !== auth()->id()) {
             abort(403, 'Unauthorized');
@@ -108,6 +135,10 @@ class BookingController extends Controller
             'time' => 'required|string',
         ]);
 
+        if ($appointment->provider_id && ! $scheduleService->isSlotAvailable(Carbon::parse($data['date']), $data['time'], $appointment->provider_id)) {
+            throw ValidationException::withMessages(['time' => ['این ساعت برای متخصص شما آزاد نیست.']]);
+        }
+
         $appointment->update([
             'date' => $data['date'],
             'time' => $data['time'],
@@ -115,7 +146,10 @@ class BookingController extends Controller
             'status' => 'requested',
         ]);
 
-        return response()->json($appointment->fresh(['provider', 'booking']));
+        $appointment = $appointment->fresh(['user', 'provider', 'booking']);
+        (new ConsultationSms)->patientRescheduled($appointment);
+
+        return response()->json($appointment);
     }
 
     public function cancel(Appointment $appointment)
@@ -125,6 +159,8 @@ class BookingController extends Controller
         }
 
         $appointment->update(['status' => 'canceled']);
+
+        (new ConsultationSms)->patientCanceled($appointment->fresh(['user', 'provider', 'booking']));
 
         return response()->json($appointment->fresh());
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientWalletException;
 use App\Models\Insurance;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -9,11 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use App\Services\SendSMS;
+use App\Services\Support\Concerns\GuardsSmsSending;
 use App\Services\PaymentService;
 use App\Services\ReminderScheduler;
 
 class InsuranceController extends Controller
 {
+    use GuardsSmsSending;
+
     /**
      * List all insurance entries (paginated)
      */
@@ -60,12 +64,10 @@ class InsuranceController extends Controller
     public function store(Request $request)
     {
         $paymentService = new PaymentService;
-        $lastPayment = $paymentService->lastPayment(auth()->id(), 'is_used_insurance');
-        
-        if(!$lastPayment) {
-            return response()->json(['message' => 'Payment needed to proceed'], 403);
+        if (! $paymentService->canAfford(auth()->user(), 'insurance')) {
+            throw new InsufficientWalletException(PaymentService::price('insurance'), $paymentService->wallet()->balance(auth()->user()), 'insurance');
         }
-        
+
         $data = $request->validate([
             'national_code'  => ['required','string','size:10'],
             'insurance_type' => ['required','string'],
@@ -80,18 +82,26 @@ class InsuranceController extends Controller
             $data['status'] = 'created';
 
             // Same all-or-nothing as lab tests: no saved request with an unused payment if scheduling fails.
-            $insurance = DB::transaction(function () use ($data, $paymentService, $lastPayment) {
+            $insurance = DB::transaction(function () use ($data, $paymentService) {
                 $insurance = Insurance::create($data);
 
                 //Creating reminders
                 (new ReminderScheduler)->scheduleInsuranceReminders(auth()->user(), $insurance);
 
-                $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'insurance');
+                $paymentService->charge(auth()->user(), 'insurance');
 
                 return $insurance;
             });
 
+            $this->notifyAdminSafely('support-admin-new-insurance', fn ($adminPhone) => (new SendSMS)->supportAdminNewInsurance(
+                $adminPhone,
+                $insurance->id,
+                $insurance->first_name ?? auth()->user()->first_name
+            ));
+
             return response()->json($insurance, 201);
+        } catch (InsufficientWalletException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error($e);
             return response()->json(['message' => 'Internal server error'], 500);
@@ -114,35 +124,51 @@ class InsuranceController extends Controller
     }
 
     /**
-     * Update insurance
+     * Update insurance.
+     *
+     * The owner can correct their own request (name, insurance type, national code) for as long
+     * as nobody has started on it (status «created»). The status and the identification code are
+     * the admin's: they drive the SMS the patient receives.
      */
     public function update(Request $request, $id)
     {
         $data = $request->validate([
             'status' => ['nullable', Rule::in(['created','in_progress', 'completed'])],
-            'first_name' => 'nullable|string',
-            'last_name' => 'nullable|string',
-            'insurance_type' => 'nullable|string',
+            'first_name' => 'nullable|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'insurance_type' => 'nullable|string|max:50',
             'national_code' => 'nullable|string|size:10',
             'identification_code' => 'nullable|string',
         ]);
 
         $insurance = Insurance::findOrFail($id);
-        if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
+        $isAdmin = auth()->user()->role === 'admin';
+        if (auth()->id() !== $insurance->user_id && ! $isAdmin) {
             abort(403, 'Unauthorized');
         }
 
+        if (! $isAdmin) {
+            if (isset($data['status']) || isset($data['identification_code'])) {
+                abort(403, 'Unauthorized');
+            }
+            if ($insurance->status !== 'created') {
+                return response()->json(['message' => 'این درخواست در حال بررسی است و دیگر قابل ویرایش نیست.'], 409);
+            }
+        }
+
         try {
-            if (isset($data['status'])) $insurance->status = $data['status'];
-            // if (isset($data['first_name'])) $insurance->first_name = $data['first_name'];
-            // if (isset($data['last_name'])) $insurance->last_name = $data['last_name'];
-            // if (isset($data['insurance_type'])) $insurance->insurance_type = $data['insurance_type'];
-            // if (isset($data['national_code'])) $insurance->national_code = $data['national_code'];
-            // if (isset($data['identification_code'])) $insurance->identification_code = $data['identification_code'];
+            $fillable = $isAdmin
+                ? ['status', 'first_name', 'last_name', 'insurance_type', 'national_code', 'identification_code']
+                : ['first_name', 'last_name', 'insurance_type', 'national_code'];
+            foreach ($fillable as $field) {
+                if (array_key_exists($field, $data) && $data[$field] !== null) {
+                    $insurance->{$field} = $data[$field];
+                }
+            }
 
             $insurance->save();
 
-            if (isset($data['status']) && isset($data['identification_code'])) {
+            if ($isAdmin && isset($data['status']) && isset($data['identification_code'])) {
                 if($data['status'] == 'completed') {
                     $user = User::findOrFail($insurance->user_id);
 
@@ -159,7 +185,7 @@ class InsuranceController extends Controller
                     ]);
                 }
             }
-          
+
             return response()->json([
                 'insurance' => $insurance,
             ]);
@@ -170,19 +196,27 @@ class InsuranceController extends Controller
     }
 
     /**
-     * Delete insurance
+     * Delete insurance (an admin, or its owner while nobody has started on it). Its pending
+     * reminders go with it.
      */
     public function destroy($id)
     {
         $insurance = Insurance::find($id);
-        if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
-            abort(403, 'Unauthorized');
-        }
         if (! $insurance) {
             return response()->json(['message' => 'Not found'], 404);
         }
+        if (auth()->id() !== $insurance->user_id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
+        if (auth()->user()->role !== 'admin' && $insurance->status !== 'created') {
+            return response()->json(['message' => 'این درخواست در حال بررسی است و دیگر قابل حذف نیست.'], 409);
+        }
 
-        $insurance->delete();
+        DB::transaction(function () use ($insurance) {
+            // Only this request's reminders: «insurance_id» ties them to it.
+            \App\Models\ScheduledSMS::where('insurance_id', $insurance->id)->where('status', 'pending')->delete();
+            $insurance->delete();
+        });
 
         return response()->json(null, 204);
     }

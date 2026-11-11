@@ -28,8 +28,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'is_admin' => \App\Http\Middleware\IsAdmin::class,
             'is_provider' => \App\Http\Middleware\IsProvider::class,
+            'is_nephrologist' => \App\Http\Middleware\IsNephrologist::class,
             'is_support_staff' => \App\Http\Middleware\IsSupportStaff::class,
             'check_last_logout' => \App\Http\Middleware\CheckLastLogout::class,
+            'chat.actor' => \App\Http\Middleware\ResolveChatActor::class,
         ]);
 
         // API-only app: there is no web "login" route to redirect guests to.

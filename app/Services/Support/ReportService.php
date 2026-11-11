@@ -2,6 +2,7 @@
 
 namespace App\Services\Support;
 
+use App\Models\ChatSession;
 use App\Models\Ticket;
 use Illuminate\Support\Collection;
 
@@ -22,6 +23,32 @@ class ReportService
             'kpis' => $this->kpis($tickets),
             'daily' => $this->dailySeries(self::DAILY_WINDOW_DAYS),
             'topics' => $this->topicDistribution($tickets),
+            'chatRatings' => $this->chatRatings(),
+        ];
+    }
+
+    /** Post-chat survey results. `average` is on a 1 (bad) – 4 (great) scale; null until the first rating. */
+    private function chatRatings(): array
+    {
+        $counts = ChatSession::whereNotNull('rated_at')
+            ->selectRaw('rating, count(*) as total')
+            ->groupBy('rating')
+            ->pluck('total', 'rating');
+
+        $distribution = [];
+        $weighted = 0;
+        $total = 0;
+        foreach (['great' => 4, 'good' => 3, 'ok' => 2, 'bad' => 1] as $rating => $score) {
+            $count = (int) ($counts[$rating] ?? 0);
+            $distribution[$rating] = $count;
+            $weighted += $count * $score;
+            $total += $count;
+        }
+
+        return [
+            'total' => $total,
+            'average' => $total > 0 ? round($weighted / $total, 2) : null,
+            'distribution' => $distribution,
         ];
     }
 

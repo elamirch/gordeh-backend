@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientWalletException;
 use App\Models\LabTest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use App\Services\Jalali;
+use App\Services\LabTestScoring;
 use App\Services\PaymentService;
 use App\Services\ReminderScheduler;
 
@@ -17,30 +20,37 @@ class LabTestController extends Controller
     public function store(Request $request): JsonResponse
     {
         $paymentService = new PaymentService;
-        $lastPayment = $paymentService->lastPayment(auth()->id(), 'is_used_lab_test');
-        if(!$lastPayment) {
-            return response()->json(['message' => 'Payment needed to proceed'], 403);
+        // Fail fast, before validating a form the user cannot submit anyway: a legacy credit or
+        // enough in the wallet. The charge itself happens inside the transaction below.
+        if (! $paymentService->canAfford(auth()->user(), 'lab_test')) {
+            throw new InsufficientWalletException(PaymentService::price('lab_test'), $paymentService->wallet()->balance(auth()->user()), 'lab_test');
         }
 
+        [$minCr, $maxCr] = LabTestScoring::URINE_CREATININE_G_PER_L;
+        [$minAlb, $maxAlb] = LabTestScoring::URINE_ALBUMIN_MG_PER_L;
         $data = $request->validate([
             'age' => 'required|integer',
             'gender' => 'required|in:m,f',
-            'urine_creatinine' => 'required|numeric',
-            'urine_albumin' => 'required|numeric',
+            // g/L and mg/L — see LabTestScoring. Out-of-range means a unit wasn't converted.
+            'urine_creatinine' => "required|numeric|between:$minCr,$maxCr",
+            'urine_albumin' => "required|numeric|between:$minAlb,$maxAlb",
             'creatinine' => 'required|numeric',
             'albumin' => 'required|numeric',
             'calcium' => 'nullable|numeric',
             'phosphorous' => 'nullable|numeric',
             'bCarbonate' => 'nullable|numeric',
+        ], [
+            'urine_creatinine.between' => 'مقدار کراتینین ادرار با واحد آن همخوانی ندارد؛ عدد و واحد را بررسی کنید.',
+            'urine_albumin.between' => 'مقدار آلبومین ادرار با واحد آن همخوانی ندارد؛ عدد و واحد را بررسی کنید.',
         ]);
 
         try {
             $user = auth()->user();
-            $gfrResult = $this->generateGfr((object) $data);
+            $gfrResult = LabTestScoring::score((object) $data);
 
             // Saving the test, its reminders and consuming the payment succeed or fail together: a
             // reminder failure used to leave a saved test with an unused payment (re-submittable).
-            $test = DB::transaction(function () use ($data, $gfrResult, $user, $paymentService, $lastPayment) {
+            $test = DB::transaction(function () use ($data, $gfrResult, $user, $paymentService) {
                 $test = LabTest::create([
                     'b_carbonate' => $data['bCarbonate'] ?? null,
                     'age' => $data['age'],
@@ -62,7 +72,8 @@ class LabTestController extends Controller
                 //Schedule assessment reminders
                 (new ReminderScheduler)->scheduleAssessmentReminders($user, $test);
 
-                $paymentService->updatePaymentUsedStatus($lastPayment['id'], 'lab-test');
+                // A legacy credit first, else the wallet; rolls back with the test if anything fails.
+                $paymentService->charge($user, 'lab_test');
 
                 return $test;
             });
@@ -71,75 +82,52 @@ class LabTestController extends Controller
                 'message' => 'test saved successfully.',
                 'data' => $test,
             ], 201);
+        } catch (InsufficientWalletException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error($e);
             return response()->json(['message' => 'Internal server error'], 500);
         }
     }
 
-    // Helper: GFR generation logic
-    private function generateGfr(object $input): array
+    /**
+     * Deletes a test (its owner, or an admin), together with the lab-sheet files attached to it
+     * and the reminders that were scheduled from it. The user's reminder plan then follows their
+     * latest remaining test, or stops when there is none. Nothing paid is refunded: the analysis
+     * was delivered.
+     */
+    public function destroy($id): JsonResponse
     {
-        $age = $input->age;
-        $gender = $input->gender;
-        $urine_creatinine = $input->urine_creatinine;
-        $urine_albumin = $input->urine_albumin;
-        $creatinine = $input->creatinine;
-        $albumin = $input->albumin;
-        $calcium = $input->calcium ?? 9.35;
-        $phosphorous = $input->phosphorous ?? 3.93;
-        $bCarbonate = $input->bCarbonate ?? 25.54;
+        $test = LabTest::find($id);
+        if (! $test) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        if (auth()->id() !== $test->user_id && auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
 
-        // Tests are stored as 'm' / 'f' (see store()'s validation); comparing against 'female' / 'male'
-        // used to run every patient through the male equation and leave out the Tangri male term.
-        $isFemale = in_array(strtolower((string) $gender), ['f', 'female'], true);
+        $user = $test->user;
 
-        $k = $isFemale ? 0.7 : 0.9;
-        $a = $isFemale ? -0.241 : -0.302;
-        $genderCoeff = $isFemale ? 1.012 : 1.0;
+        DB::transaction(function () use ($test, $user) {
+            foreach ($test->files as $file) {
+                Storage::disk($file->disk)->delete($file->storage_key);
+                $file->delete();
+            }
 
-        $minCr = min($creatinine / $k, 1);
-        $maxCr = max($creatinine / $k, 1);
+            $test->delete();
 
-        $gfr = 142 * pow($minCr, $a) * pow($maxCr, -1.2) * pow(0.9938, $age) * $genderCoeff;
-        $gfr = round($gfr, 2);
+            if ($user) {
+                $scheduler = new ReminderScheduler;
+                $scheduler->cancelAssessmentReminders($user);
 
-        // Stage classification
-        $stage = 1;
-        if ($gfr < 90) $stage = 2;
-        if ($gfr < 60) $stage = 3;
-        if ($gfr < 30) $stage = 4;
-        if ($gfr < 15) $stage = 5;
+                $latest = LabTest::where('user_id', $user->id)->orderByDesc('created_at')->orderByDesc('id')->first();
+                if ($latest) {
+                    $scheduler->scheduleAssessmentReminders($user, $latest);
+                }
+            }
+        });
 
-        // Albumin-to-creatinine ratio (mg/g)
-        $acr = $urine_creatinine != 0 ? ($urine_albumin / $urine_creatinine) : 0;
-        $acr = round($acr, 2);
-
-        // Linear predictor (Tangri 2011 centered variables)
-        $lp =
-            -0.4936 * ($gfr / 5 - 7.22) +
-            0.16117 * (($isFemale ? 0 : 1) - 0.56) +
-            0.35066 * (log(max($acr, 1e-9)) - 5.2775) +
-            -0.19883 * ($age / 10 - 7.04) +
-            -0.33867 * ($albumin - 3.99) +
-            0.24197 * ($phosphorous - 3.93) +
-            -0.07429 * ($bCarbonate - 25.54) +
-            -0.22129 * ($calcium - 9.35);
-
-        // Baseline survival rates
-        $S0_5yr = 0.929;
-        $S0_2yr = 0.978;
-
-        $risk5Years = (1 - pow($S0_5yr, exp($lp))) * 100;
-        $risk2Years = (1 - pow($S0_2yr, exp($lp))) * 100;
-
-        return [
-            'gfr' => round($gfr, 2),
-            'stage' => $stage,
-            'albumin_creatinine_ratio' => round($acr, 2),
-            'risk2Years' => round($risk2Years, 2),
-            'risk5Years' => round($risk5Years, 2),
-        ];
+        return response()->json(null, 204);
     }
 
     // Paginated list of authenticated user's tests (equivalent to findAllOwnTests)

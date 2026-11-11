@@ -22,6 +22,7 @@ class ScheduledSMS extends Model
         'error',
         'insurance_id',
         'lab_test_id',
+        'webinar_registration_id',
     ];
 
     protected $casts = [

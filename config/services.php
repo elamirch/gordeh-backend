@@ -39,6 +39,14 @@ return [
     // still resolves after `php artisan config:cache`, where env() outside config files returns null.
     'kavenegar' => [
         'lookup_url' => env('SMS_API_URL'),
+        // Gets a heads-up SMS for new tickets, patient replies, callback requests and insurance requests. Empty = off.
+        'support_admin_phone' => env('SMS_SUPPORT_ADMIN_PHONE'),
+    ],
+
+    'metis' => [
+        'api_key' => env('METIS_API_KEY'),
+        'gemini_model' => env('METIS_GEMINI_MODEL', 'gemini-2.5-pro'),
+        'base_url' => env('METIS_BASE_URL', 'https://api.metisai.ir/v1beta/models'),
     ],
 
 ];

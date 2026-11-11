@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ReminderScheduler;
 use Illuminate\Database\Eloquent\Model;
 
 class WebinarRegistration extends Model
@@ -21,7 +22,10 @@ class WebinarRegistration extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** Registers the phone for the webinar, or returns the existing registration. */
+    /**
+     * Registers the phone for the webinar, or returns the existing registration. A new registration
+     * gets the webinar's reminder SMSs.
+     */
     public static function register(string $webinar, string $name, string $phone, string $source): array
     {
         $existing = self::where('webinar', $webinar)->where('phone', $phone)->first();
@@ -36,6 +40,8 @@ class WebinarRegistration extends Model
             'phone' => $phone,
             'source' => $source,
         ]);
+
+        (new ReminderScheduler)->scheduleWebinarReminders($registration);
 
         return [$registration, true];
     }

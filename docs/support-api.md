@@ -63,10 +63,10 @@ POST   /support/tickets                      {category, subject, description, fi
 GET    /support/tickets/{id}                 own ticket only (403 otherwise)
 GET    /support/tickets/{id}/messages         excludes internal notes
 POST   /support/tickets/{id}/messages         {text, fileUrl?} — rejected (403) if ticket is closed
-POST   /support/callback-requests             {phone, slot}
-GET    /support/chat/messages?sessionId=      own session's history only
-POST   /support/chat/messages                 {sessionId?, text, fileUrl?} — creates a session if sessionId is omitted
+POST   /support/callback-requests             {phone, slot, name?, source?} — members *or guests* (see Chat widget)
 ```
+
+The chat endpoints are documented under [Chat widget](#chat-widget-members--guests) below.
 
 ## Admin/Agent endpoints (`/admin/*`)
 
@@ -84,16 +84,18 @@ GET    /admin/faq                             published + draft
 POST   /admin/faq                             {question, answer, category?, status}
 PATCH  /admin/faq/{id}                        any subset of the above
 
-GET    /admin/agents                          role in (admin, support_agent) + activeTicketCount
+GET    /admin/agents                          role in (admin, support_agent) + activeTicketCount; `state` is the effective presence, `stateAt` when it was set
+PATCH  /admin/agents/me/state                 {state: online|in_call|break|offline} — own presence; also the 60 s heartbeat (see Agent presence)
 GET    /admin/agents/shifts                   full 7×3 (weekday × window) grid, empty cells included
 PATCH  /admin/agents/shifts                   {agentId, weekday, window, assigned: bool}
 
 GET    /admin/chat/sessions?status=&page=&limit=  session list — status filter optional, paginated (same envelope as /admin/tickets)
-PATCH  /admin/chat/sessions/{id}              {status: 'waiting'|'active'|'closed'} — explicit close/reopen
-GET    /admin/chat/messages?sessionId=        any session — no ownership restriction for staff
-POST   /admin/chat/messages                   {sessionId, text, fileUrl?} — sessionId is required (agents never start a session)
+PATCH  /admin/chat/sessions/{id}              {status: 'waiting'|'active'|'closed'} — explicit close/reopen; `active` claims the session, `closed` records closed_by='agent'
+POST   /admin/chat/sessions/{id}/typing       204 — flags "agent is typing" for 5 s and broadcasts ChatAgentTyping
+GET    /admin/chat/messages?sessionId=        any session — no ownership restriction; opening it marks the user's messages as read (ChatMessagesRead)
+POST   /admin/chat/messages                   {sessionId, text, fileUrl?} — sessionId is required (agents never start a session); the first reply claims the session
 
-GET    /admin/support/reports                 KPIs, 14-day daily series, topic distribution
+GET    /admin/support/reports                 KPIs, 14-day daily series, topic distribution, chat ratings
 ```
 
 `GET /admin/tickets` and `GET /admin/callback-requests` return Laravel's standard paginator
@@ -136,6 +138,157 @@ not their name.
   endpoint blocks it explicitly, and the admin reply path has no code path that clears
   `closed` except an explicit `PATCH {status: ...}` first.
 
+## Chat widget (members + guests)
+
+The global support widget runs on every page, so a visitor without an account can chat too.
+Everything below is relative to `API_URL` (which already ends in `/api`).
+
+### Who is calling — `chat.actor`
+
+`ResolveChatActor` (alias `chat.actor`) identifies the caller on the widget routes:
+
+1. `Authorization: Bearer` present → must be a valid JWT (same checks as `auth:api` +
+   `check_last_logout`); an invalid/expired one is `401`. The caller is a **member**.
+2. else `X-Chat-Token` → the **guest** owning the session whose `guest_token_hash` equals
+   `sha256(token)` (compared with `hash_equals`). A guest only ever reaches that one session,
+   and the token stops working 24 h after the session was created.
+3. else no actor. Public endpoints allow that; the others answer `401` (no session to target)
+   or `403` (a session was named but the caller does not own it).
+
+Session ownership is one rule (`ChatActor::canAccess`): `session.user_id === the member`, or
+the guest token's own session. Support staff are *not* special here — they use `/admin/chat/*`.
+`X-Chat-Token` is allowed through CORS (`allowed_headers: ['*']`; covered by a preflight test).
+
+### Endpoints
+
+```
+GET    /support/chat/config                         public, 60/min
+POST   /support/chat/sessions                       identity optional, 10/min — {phone?, name?, message? 3–5000 (required while offline)}
+GET    /support/chat/sessions/{id}                  owner (member or guest token) — the snapshot; ETag/304 supported
+POST   /support/chat/sessions/{id}/end              owner — idempotent
+POST   /support/chat/sessions/{id}/rating           owner — {rating: great|good|ok|bad, note?≤1000}
+GET    /support/chat/messages?sessionId=            owner
+POST   /support/chat/messages                       owner — {sessionId, text, fileUrl?}
+POST   /support/chat/uploads                        member or guest token, 10/min — multipart `file` (jpg/png ≤ 10 MB)
+POST   /support/callback-requests                   identity optional, 5/min — {phone, slot, name?}
+```
+
+Each rate limit is a named limiter with its own bucket (members keyed by account, others by
+IP) — the plain `throttle:N,1` form would share one bucket across every route using it.
+
+**`GET /support/chat/config`** → `{ "online": true, "workingHours": {"from":"09:00","to":"21:00"}, "estimatedWaitMinutes": 3 }`.
+`online` = inside the working hours (Asia/Tehran clock; `from` inclusive, `to` exclusive; a
+window like 20:00–02:00 wraps midnight) **and** at least one staff user is *effectively*
+online — `support_state = 'online'` with a `support_state_at` newer than the presence TTL
+(see [Agent presence](#agent-presence)). `online=false` only changes the widget's wording and the
+wait estimate; it never stops a chat from being started. `estimatedWaitMinutes = max(1, ceil((waiting + 1) / max(onlineAgents, 1)) * avgHandleMinutes)`.
+Configured in `config/support.php` (env `SUPPORT_CHAT_HOURS_FROM`, `SUPPORT_CHAT_HOURS_TO`,
+`SUPPORT_CHAT_AVG_HANDLE_MINUTES`, `SUPPORT_CHAT_PRESENCE_TTL`).
+
+**`POST /support/chat/sessions`** — `{phone, name?, message?}`; a member's `phone`/`name` are ignored.
+- **Online or offline, a chat can always be started.** While offline (outside working hours,
+  or nobody effectively online) the visitor must leave a first `message`, which agents answer
+  once they are back; the snapshot's `estimatedWaitMinutes` is then `null`. Leaving it out
+  while offline is an ordinary validation `422` on `message` — there is no special "offline"
+  response. A markup-only message such as `<b></b>` is a `422` on `message` as well.
+- Member: returns their open (`waiting|active`) session with `200`, else creates one (`201`).
+  A `message`, if sent, is added to whichever session that is — never a second session.
+- Guest: `phone` required (`^09\d{9}$`), `name` ≤ 60; always a new session (`201`). The
+  response carries `guestToken` — **once, here only**; only its sha256 is stored. Send it back
+  as `X-Chat-Token` on every later call.
+- `message` (3–5000 characters, plain text — tag-shaped markup is stripped) is optional while
+  online and is accepted then too. It is stored in the same transaction as the session, so a
+  chat never exists without the message it was opened with.
+- Dispatches `NewChatSessionStarted` (now with `patientPhone` + `isGuest`), then `ChatMessageSent`
+  for the first message — after the commit.
+
+**Snapshot** (`POST /sessions`, `GET /sessions/{id}`, `/end`, `/rating`, and the `ChatSessionUpdated` push):
+```json
+{
+  "id": 123, "status": "waiting", "queuePosition": 2, "estimatedWaitMinutes": 4,
+  "agent": { "name": "مریم رضایی", "joinedAt": "2026-10-13T10:31:00+00:00" },
+  "agentTyping": false, "lastReadMessageId": 1012, "lastMessageId": 1020, "rated": false
+}
+```
+- `queuePosition` = `1 + waiting sessions with a smaller id`; `estimatedWaitMinutes` uses that
+  position. Both are `null` unless `waiting`, and `estimatedWaitMinutes` is also `null` while the
+  chat is offline (no promise of a quick reply at night).
+- `agent` is `null` until the first claim, then stays (also after closing). Display name only —
+  never phone, email or id. `agentTyping` = `agent_typing_until > now`.
+- `lastReadMessageId` = highest user-message id an agent has opened; `lastMessageId` = newest
+  message of the session — guests poll the snapshot every ~3 s and only re-fetch history when
+  it changes. Send `If-None-Match` to get a bodyless `304` while nothing changed.
+- The guest phone and token hash are never part of it.
+
+**Messages** — same shape as before (`id, sessionId, sender, text, fileUrl (signed), createdAt`).
+`text` is required (the widget sends `"عکس"` for a picture without a caption) and is plain
+text: anything shaped like an HTML tag is stripped, and a message that is *only* markup is a
+`422`. `sessionId` is always sent by the widget; omitting it still lazily creates a session for
+a member (old behaviour), but is a `422` for a guest. A message on a `closed` session still
+reopens it (`closed → waiting`), exactly as before.
+
+**`fileUrl`** must be the `url` returned by `POST /support/chat/uploads` **to the same
+caller** — an arbitrary path, an external URL, another user's upload or a file from another
+guest session is `422` on `fileUrl`.
+
+**Uploads** → `201 { "url": "chat-uploads/…", "signed_url": "https://…" }` (same keys as
+`/stored-files`). jpg/png only (`422` otherwise). Members also get a `StoredFile` row
+(`category: chat`); guests have none, their files live in `chat-uploads/guest-{sessionId}/`,
+capped at 5 per session (`422`). `GET /api/files` serves anything under `chat-uploads/`
+(signed URLs only — guests have no record to attach the file to).
+
+**End / rating** — `end` sets `closed`, `closed_by='user'`, `closed_at` and fires
+`ChatSessionStatusChanged` + `ChatSessionUpdated`; repeating it changes nothing and fires
+nothing. `rating` needs a `closed` session (`409` otherwise) and is accepted once (`409`);
+input is validated first (`422`).
+
+**After hours** — there is no separate "offline message" endpoint: a visitor leaves a message
+by starting a chat with `message` (above). Such a `waiting` chat is kept for up to 48 h (see
+Housekeeping) and shows up in the agents' queue once they are online. (`callback_requests.topic`
+is `TEXT`, and `source` is `support_page` | `chat_widget`.)
+
+**Guest callback requests** — `POST /support/callback-requests` no longer needs a login:
+guests are stored with `user_id = null`, `source = 'chat_widget'`; the confirmation SMS is
+sent to members only. A member's request is `support_page` unless the widget sends
+`source: "chat_widget"`.
+
+### Agent presence
+
+The chat is "online" only while an agent is, so the console must report presence:
+
+```
+PATCH  /admin/agents/me/state     is_support_staff, 30/min — {state: online|in_call|break|offline} → 200 {"id": 7, "state": "online"}
+```
+
+- Writes `users.support_state` and `users.support_state_at = now()` for the caller.
+- **Idempotent — it doubles as the heartbeat.** While `online`, the console repeats
+  `state=online` every ~60 s. Repeating the current state is not an error: it only refreshes
+  `support_state_at` (without touching `users.updated_at`).
+- **Presence expires.** `online` counts only while `support_state_at` is newer than
+  `chat.presence_ttl_seconds` (env `SUPPORT_CHAT_PRESENCE_TTL`, default 120). A closed tab just
+  stops sending heartbeats and drops out by itself; nothing needs to flip the column. Only
+  `online` expires — `in_call` / `break` have no heartbeat and are reported as set.
+- `GET /admin/agents` returns the *effective* `state` (a lapsed `online` reads `offline`) plus
+  `stateAt`, the last time the state was written (`null` if never).
+- `auth/logout` and `auth/logout-all` set a staff user `offline`.
+- `AgentPresenceChanged { agentId, state }` is broadcast on `support.agents` when the effective
+  state changes — not on heartbeats. A silent expiry sends nothing, so a live list should also
+  refetch `GET /admin/agents` now and then.
+
+### Housekeeping (`gordeh:support-chat-housekeeping`, scheduled every minute)
+
+- `waiting` with no message at all and older than 15 min → `closed` (`closed_by='system'`).
+- `waiting` *with* messages (e.g. an overnight message) stays open for up to 48 h, then
+  `closed` (`system`). The 48 h run from when the chat last entered `waiting` (`updated_at`),
+  not from creation — a chat the user reopens after weeks is not closed again at once.
+- `active` with no message (and no status change) for 30 min → `closed` (`system`).
+- Guest sessions older than 24 h → `closed` (`system`), whatever their state.
+- Each close fires `ChatSessionStatusChanged` + `ChatSessionUpdated`; queue positions of the
+  remaining waiting member sessions are re-broadcast once per run.
+
+Thresholds live in `config/support.php` (`empty_waiting_minutes`, `waiting_with_messages_hours`, `idle_active_minutes`, `guest_ttl_hours`). Remember the scheduler (`php artisan schedule:work`
+or the usual cron entry) must be running.
+
 ## Chat session lifecycle
 
 `chat_sessions.status`: `waiting` | `active` | `closed` — `waiting` by default at creation.
@@ -157,6 +310,13 @@ create → waiting ──agent replies──► active ──agent closes (PATCH
   without an agent message.
 - A same-status update (automatic or explicit) is a no-op: no `updated_at` touch, no
   `ChatSessionStatusChanged` broadcast. Only an actual change fires it.
+- Closing records `closed_at` + `closed_by` (`user` | `agent` | `system`); leaving `closed`
+  clears both. Entering or leaving `waiting` re-broadcasts `ChatSessionUpdated` to the waiting
+  *member* sessions queued behind it (guests poll instead).
+- **Claim:** the first agent reply — or `PATCH {status:'active'}` — sets `agent_id` /
+  `agent_joined_at`; later agents never replace it, and it survives closing.
+- Bookkeeping that is not "activity" (claim, typing, read receipts) is saved without touching
+  `updated_at`, so it never reorders `GET /admin/chat/sessions`.
 - This logic lives once in `ChatService::applyAutoTransition()`/`updateStatus()`, shared by
   the patient send path, the agent send path, and the explicit PATCH endpoint — same
   "shared service, thin controllers" rule as everything else in this doc.
@@ -227,7 +387,7 @@ operational requirement `SendSmsJob` already has, nothing new.
 
 | Channel | Who can join | Purpose |
 |---|---|---|
-| `private-chat.{sessionId}` | The patient who owns the session, or any support staff (`admin`/`support_agent`) | One patient↔support chat conversation |
+| `private-chat.{sessionId}` | The patient who owns the session, or any support staff (`admin`/`support_agent`). Guest sessions: staff only — guests poll instead | One patient↔support chat conversation |
 | `private-ticket.{ticketId}` | The patient who owns the ticket, or any support staff | Ticket thread — **replies only**, never notes (see below) |
 | `private-support.agents` | Support staff only, never a patient | Admin-panel-wide queue feed: new tickets, new chats, internal notes, anything staff should see regardless of which specific ticket they have open |
 
@@ -240,7 +400,11 @@ not something you type yourself.
 | Event (`.ChatMessageSent` etc. — see `broadcastAs()`) | Broadcast on | Fired when |
 |---|---|---|
 | `ChatMessageSent` | `chat.{sessionId}` | Any chat message is stored — patient (`POST /support/chat/messages`) or agent (`POST /admin/chat/messages`) |
-| `NewChatSessionStarted` | `support.agents` | A patient's first message creates a session (no `sessionId` in the request) |
+| `NewChatSessionStarted` | `support.agents` | A session is created — `POST /support/chat/sessions`, or a member's first message without a `sessionId` |
+| `ChatSessionUpdated` | `chat.{sessionId}` | The widget snapshot changed: claim, status change, end, rating, queue position |
+| `AgentPresenceChanged` | `support.agents` | An agent's effective presence changed (`PATCH /admin/agents/me/state`, logout) — never for a heartbeat |
+| `ChatAgentTyping` | `chat.{sessionId}` | `POST /admin/chat/sessions/{id}/typing` |
+| `ChatMessagesRead` | `chat.{sessionId}` | An agent opened the conversation and `last_read_message_id` advanced |
 | `ChatSessionStatusChanged` | `support.agents` | A session's status actually changes — automatic transition or explicit `PATCH /admin/chat/sessions/{id}` (never fires for a same-status no-op) |
 | `TicketMessageSent` | `ticket.{ticketId}` **and** `support.agents`, unless it's a note | A ticket message is stored, from any of the three ticket-message endpoints |
 
@@ -262,10 +426,19 @@ Exactly what the equivalent REST endpoint already returns — nothing broadcast-
 ```
 `sender` is `"user"` or `"support"` (the existing `ChatMessage.sender` enum — unchanged).
 
-**`NewChatSessionStarted`**:
+**`NewChatSessionStarted`** (staff-only channel, so the phone may be included):
 ```json
-{ "sessionId": "5", "patientId": 12, "patientName": "علی رضایی", "createdAt": "2026-08-23T10:00:00+00:00" }
+{
+  "sessionId": "5", "patientId": 12, "patientName": "علی رضایی", "patientPhone": "09121234567",
+  "isGuest": false, "createdAt": "2026-08-23T10:00:00+00:00"
+}
 ```
+For a guest `patientId` is `null` and `patientName` is the given name or `"مهمان"`.
+
+**`AgentPresenceChanged`** — `{ "agentId": 7, "state": "online" }`.
+
+**`ChatSessionUpdated`** — the snapshot above (never a `guestToken`). **`ChatAgentTyping`** —
+`{ "sessionId": 123 }`. **`ChatMessagesRead`** — `{ "sessionId": 123, "lastReadMessageId": 1012 }`.
 
 **`ChatSessionStatusChanged`** — deliberately the smallest possible payload, `sessionId` as a
 plain int (matching `GET /admin/chat/sessions`' shape, not `NewChatSessionStarted`'s string —
@@ -327,7 +500,12 @@ const echo = new Echo({
 echo.private(`ticket.${ticketId}`).listen('.TicketMessageSent', (e) => { /* append if e.author !== 'note' */ });
 
 // Patient's chat
-echo.private(`chat.${sessionId}`).listen('.ChatMessageSent', (e) => { /* append */ });
+echo.private(`chat.${sessionId}`)
+  .listen('.ChatMessageSent', (e) => { /* append */ })
+  .listen('.ChatSessionUpdated', (e) => { /* replace the snapshot: queue position, agent, status, rated */ })
+  .listen('.ChatAgentTyping', (e) => { /* show "typing…" for ~5 s */ })
+  .listen('.ChatMessagesRead', (e) => { /* mark own messages with id <= e.lastReadMessageId as seen */ });
+// Guests cannot join private channels: poll GET /support/chat/sessions/{id} (X-Chat-Token) every ~3 s.
 
 // Admin panel queue feed
 echo.private('support.agents')
@@ -366,6 +544,13 @@ Enforced server-side, covered by `tests/Feature/AdminTicketTest.php`,
   array, so it has no effect regardless of what the client sends.
 - `/admin/*` support routes require `role IN (admin, support_agent)`; a plain `user` gets
   403 on all of them.
+- Guest tokens are stored only as sha256, compared with `hash_equals`, never logged and never
+  returned after creation; the guest phone is only ever shown to staff (`ChatSession` hides
+  `guest_phone` / `guest_token_hash` from serialization as a second layer).
+- Chat text is plain text (tag-shaped markup stripped server-side; the frontend still escapes).
+  `fileUrl` accepts only files the same caller uploaded through the chat uploader.
+- Covered by `SupportChatWidgetTest`, `SupportChatUploadTest`, `SupportChatHousekeepingTest`
+  and `AgentPresenceTest`.
 - Channel authorization (`routes/channels.php`) mirrors the REST ownership rules exactly: a
   patient can open `chat.{id}`/`ticket.{id}` only for their own session/ticket;
   `support.agents` is staff-only. A note never reaches a patient's socket regardless of

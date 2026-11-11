@@ -29,12 +29,17 @@ class NewChatSessionStarted implements ShouldBroadcast
     {
         $this->session->loadMissing('user');
         $patient = $this->session->user;
-        $name = $patient ? trim(($patient->first_name ?? '').' '.($patient->last_name ?? '')) : null;
+        $name = $patient
+            ? trim(($patient->first_name ?? '').' '.($patient->last_name ?? ''))
+            : ($this->session->guest_name ?: 'مهمان');
 
         return [
             'sessionId' => (string) $this->session->id,
             'patientId' => $this->session->user_id,
             'patientName' => $name !== '' ? $name : null,
+            // support.agents is staff-only, so the phone may travel here (never to the widget).
+            'patientPhone' => $patient ? $patient->phone_number : $this->session->guest_phone,
+            'isGuest' => $this->session->isGuest(),
             'createdAt' => $this->session->created_at->toIso8601String(),
         ];
     }

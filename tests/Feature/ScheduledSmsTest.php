@@ -63,7 +63,7 @@ class ScheduledSmsTest extends TestCase
             'age' => 40,
             'gender' => 'm',
             'creatinine' => 1.1,
-            'urine_creatinine' => 90,
+            'urine_creatinine' => 0.9, // g/L
             'albumin' => 4.0,
             'urine_albumin' => 20,
             'gfr' => 80,
@@ -94,7 +94,7 @@ class ScheduledSmsTest extends TestCase
         $response = $this->postJson('/api/lab-tests', [
             'age' => 40,
             'gender' => 'm',
-            'urine_creatinine' => 90,
+            'urine_creatinine' => 0.9, // g/L
             'urine_albumin' => 20,
             'creatinine' => 1.0,
             'albumin' => 4.0,

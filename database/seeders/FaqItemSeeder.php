@@ -9,31 +9,9 @@ class FaqItemSeeder extends Seeder
 {
     public function run(): void
     {
-        $items = [
-            [
-                'question' => 'چطور نتیجه آزمایش را ثبت کنم؟',
-                'answer' => 'از داشبورد گزینه «ثبت آزمایش جدید» را بزنید، تصویر یا فایل PDF نتیجه را بارگذاری کنید. نتیجه پس از پردازش در بخش «آزمایش‌های من» نمایش داده می‌شود.',
-            ],
-            [
-                'question' => 'چطور وضعیت درخواست خودم را ببینم؟',
-                'answer' => 'از بخش «درخواست‌های من» در پشتیبانی می‌توانید وضعیت هر درخواست را مشاهده کنید.',
-            ],
-            [
-                'question' => 'چطور با پشتیبانی تماس بگیرم؟',
-                'answer' => 'از بخش پشتیبانی می‌توانید گفتگوی زنده را شروع کنید یا درخواست تماس ثبت کنید تا همکاران ما با شما تماس بگیرند.',
-            ],
-            [
-                'question' => 'مشکل در پرداخت دارم، چه کار کنم؟',
-                'answer' => 'از بخش «پرداخت‌ها» وضعیت تراکنش را بررسی کنید. اگر مشکل حل نشد، از همین‌جا یک درخواست پشتیبانی با دسته «پرداخت» ثبت کنید.',
-            ],
-            [
-                'question' => 'چطور اطلاعات حسابم را تغییر بدهم؟',
-                'answer' => 'از بخش «ویرایش اطلاعات» در پنل کاربری می‌توانید نام، شماره تماس و سایر اطلاعات هویتی خود را به‌روزرسانی کنید.',
-            ],
-        ];
-
-        foreach ($items as $item) {
-            FaqItem::updateOrCreate(['question' => $item['question']], $item);
+        // An answer an admin has edited is theirs: only missing questions are added.
+        foreach (require database_path('data/faq.php') as $i => $item) {
+            FaqItem::firstOrCreate(['question' => $item['question']], $item + ['status' => 'published', 'sort_order' => $i + 1]);
         }
     }
 }

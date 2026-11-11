@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ShiftAssignment;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\Support\AgentPresenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,8 @@ class AgentController extends Controller
     private const AGENT_ROLES = ['admin', 'support_agent'];
 
     private const WINDOWS = ['morning', 'noon', 'evening'];
+
+    public function __construct(private readonly AgentPresenceService $presence) {}
 
     // GET /admin/agents
     public function index(): JsonResponse
@@ -30,9 +33,25 @@ class AgentController extends Controller
             'id' => $a->id,
             'name' => $this->fullName($a),
             'role' => $a->role,
-            'state' => $a->support_state ?? 'offline',
+            // Effective state: an `online` whose heartbeat has lapsed reads as offline.
+            'state' => $a->effectiveSupportState(),
+            'stateAt' => $a->support_state_at?->toIso8601String(),
             'activeTicketCount' => $activeCounts->get($a->id, collect())->count(),
         ])->values());
+    }
+
+    // PATCH /admin/agents/me/state
+    // Also the console's heartbeat: while `online` it repeats the same request every ~60 s.
+    public function updateMyState(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'state' => ['required', Rule::in(AgentPresenceService::STATES)],
+        ]);
+
+        $agent = $request->user();
+        $state = $this->presence->set($agent, $data['state']);
+
+        return response()->json(['id' => $agent->id, 'state' => $state]);
     }
 
     // GET /admin/agents/shifts

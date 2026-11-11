@@ -61,7 +61,10 @@ class PrivateFiles
             ? now()->startOfHour()->addHours(2)
             : now()->addMinutes($minutes);
 
-        return URL::temporarySignedRoute('files.serve', $expires, ['path' => $path]);
+        // Sign the path only (checked with `signed:relative`): behind a TLS-terminating
+        // proxy the scheme/host Laravel sees differs from the public one, which would
+        // otherwise invalidate the signature. url() then adds the public APP_URL root.
+        return url(URL::temporarySignedRoute('files.serve', $expires, ['path' => $path], absolute: false));
     }
 
     /** The disk that currently holds the file, or null if it is missing. */
